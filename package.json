@@ -1,0 +1,13 @@
+{
+  "name": "game-faction-selection",
+  "version": "1.0.0",
+  "description": "Turn-based faction battle game with online lobby and AI fallback",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

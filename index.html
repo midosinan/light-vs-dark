@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حرب الفصائل</title>
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/welcome.css">
+    <link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+
+    <div class="game-container welcome-screen" id="welcome-screen">
+        <div class="ui-frame-overlay"></div>
+        <div class="split-background">
+            <div class="bg-side shadow-bg"></div>
+            <div class="bg-side dawn-bg"></div>
+        </div>
+
+        <section class="welcome-panel" aria-labelledby="welcome-title">
+            <h1 id="welcome-title">حرب الفصائل</h1>
+            <p class="welcome-greeting">مرحباً بك أيها المحارب في ساحة المعركة بين النور والظلام! اكتب اسمك، ثم اختر من تريد أن تواجه.</p>
+
+            <div class="welcome-name-box">
+                <label for="welcome-name-input">ما اسمك؟</label>
+                <input id="welcome-name-input" type="text" maxlength="20" placeholder="اكتب اسمك هنا" autocomplete="off">
+                <p class="welcome-error" id="welcome-error" hidden>الرجاء إدخال اسمك أولاً.</p>
+            </div>
+
+            <div class="welcome-actions">
+                <button type="button" class="cta-button btn-dawn" id="challenge-humans">تحدي ناس حقيقيين</button>
+                <button type="button" class="cta-button btn-shadow" id="challenge-computer">تحدي الكمبيوتر</button>
+            </div>
+        </section>
+    </div>
+
+    <div class="game-container selection-screen screen-hidden" id="selection-screen" hidden>
+        <!-- الإطار الخارجي المزخرف -->
+        <div class="ui-frame-overlay"></div>
+
+        <!-- خلفية الشاشة المقسمة -->
+        <div class="split-background">
+            <div class="bg-side shadow-bg"></div>
+            <div class="bg-side dawn-bg"></div>
+        </div>
+
+        <!-- شريط العنوان العلوي -->
+        <header class="main-header">
+            <div class="header-banner">
+                <h1>حرب الفصائل</h1>
+                <p class="header-subtitle">اختر مصيرك: فريق النور أم فريق الظلام؟</p>
+                <div class="header-gem"></div>
+                <button type="button" class="guide-button" id="open-guide">دليل اللعبة</button>
+                <button type="button" class="guide-button mode-back-button" id="back-to-welcome">رجوع</button>
+            </div>
+        </header>
+
+        <!-- الشعار المركزي الفاصل -->
+        <div class="central-emblem">
+            <img src="assets/images/ui/emblem-split.png" alt="شعار الفجر والظلال">
+        </div>
+
+        <div class="online-lobby" id="online-lobby">
+            <div class="online-lobby-header">
+                <h2>اللاعبون المتاحون</h2>
+            </div>
+            <div class="online-player-list" id="online-player-list">
+                <p>جارٍ تحميل اللاعبين...</p>
+            </div>
+        </div>
+
+        <!-- محتوى الفصيلين -->
+        <main class="factions-container">
+            
+            <!-- فريق الظلام (الجانب الأيسر) -->
+            <section class="faction-card shadow-faction">
+                <div class="portrait-wrapper">
+                    <img src="assets/images/characters/lord-shadow.png" alt="سيد الظلال" class="portrait-img">
+                </div>
+                <div class="faction-info">
+                    <h2>فريق الظلام</h2>
+                    <p class="subtitle">(سيد القوة والظلام)</p>
+                    <div class="ability-box">
+                        <img src="assets/images/icons/icon-call.png" alt="نداء الاجداث" class="ability-icon">
+                        <div>
+                            <strong>نداء الاجداث</strong>
+                            <span>(إلحاق ضرر مباشر وبعث البطاقات من المقبرة)</span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="cta-button btn-shadow" id="join-dark-team">[ الانضمام لفريق الظلام ]</button>
+            </section>
+
+            <!-- فريق النور (الجانب الأيمن) -->
+            <section class="faction-card dawn-faction">
+                <div class="portrait-wrapper">
+                    <img src="assets/images/characters/king-dawn.png" alt="ملك الفجر" class="portrait-img">
+                </div>
+                <div class="faction-info">
+                    <h2>فريق النور</h2>
+                    <p class="subtitle">(حامي النور والعدالة)</p>
+                    <div class="ability-box">
+                        <img src="assets/images/icons/icon-shield.png" alt="درع النور" class="ability-icon">
+                        <div>
+                            <strong>درع النور</strong>
+                            <span>(زيادة نقاط الدفاع واستعادة الصحة)</span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="cta-button btn-dawn" id="join-light-team">[ الانضمام لفريق النور ]</button>
+            </section>
+
+        </main>
+
+        <!-- اللوحة الجانبية اليسرى: سوق البنك -->
+        <aside class="sidebar side-right">
+            <div class="panel-box shop-panel">
+                <div class="panel-header">سوق البنك <span>&gt;</span></div>
+                <ul class="shop-list">
+                    <li><span>بعث الأرواح</span> <mark>4</mark></li>
+                    <li><span>جيش المرتزقة</span> <mark>5</mark></li>
+                    <li><span>ضريبة قسرية</span> <mark>3</mark></li>
+                    <li><span>لعنة الافلاس</span> <mark>4</mark></li>
+                    <li><span>لعبة الحظ</span> <mark>2</mark></li>
+                    <li><span>استبدال الذهب بالحياة</span> <mark>3</mark></li>
+                    <li><span>استبدال حياة القائد بالذهب</span> <mark>+5</mark></li>
+                </ul>
+                <div class="shop-footer">إغلاق</div>
+            </div>
+        </aside>
+
+        <!-- شريط البطاقات السفلي -->
+      <footer class="bottom-hand">
+    <div class="cards-deck faction-deck good-deck" aria-label="كروت فريق النور">
+        <div class="card"><img src="assets/images/cards/Good/falcon.png" alt="الصقر الجارح"></div>
+        <div class="card"><img src="assets/images/cards/Good/light-healer.png" alt="معالجة النور"></div>
+        <div class="card"><img src="assets/images/cards/Good/cunning-trader.png" alt="التاجر الماكر"></div>
+    </div>
+
+    <div class="faction-challenge" aria-hidden="true">تحدي</div>
+
+    <div class="cards-deck faction-deck evil-deck" aria-label="كروت فريق الظلام">
+        <div class="card"><img src="assets/images/cards/Evil/silent-neighbor.png" alt="الجار الصامت"></div>
+        <div class="card"><img src="assets/images/cards/Evil/hell-dragon.png" alt="تنين الجحيم"></div>
+        <div class="card"><img src="assets/images/cards/Evil/dark-ghoul.png" alt="غول الظلام"></div>
+    </div>
+</footer>
+    </div>
+
+    <div class="guide-modal screen-hidden" id="challenge-team-modal" role="dialog" aria-modal="true" aria-labelledby="challenge-team-title">
+        <div class="guide-panel">
+            <article class="guide-content">
+                <h2 id="challenge-team-title">اختيار الفريق</h2>
+                <p id="challenge-team-message">اختر الفريق الذي ستلعب به.</p>
+                <div class="name-entry-box">
+                    <button type="button" class="cta-button btn-dawn" data-challenge-team="light">فريق النور</button>
+                    <button type="button" class="cta-button btn-shadow" data-challenge-team="dark">فريق الظلام</button>
+                </div>
+            </article>
+        </div>
+    </div>
+
+    <div class="guide-modal screen-hidden" id="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+        <div class="guide-panel">
+            <button type="button" class="guide-close" id="close-guide" aria-label="إغلاق دليل اللعبة">×</button>
+            <article class="guide-content">
+                <h2 id="guide-title">دليل اللعب أونلاين</h2>
+                <p>هذا الدليل يشرح طريقة لعب <strong>حرب الفصائل</strong> عبر الإنترنت. يتولى النظام تلقائيًا إدارة المباراة، الجولات، الصحة، الذهب، السوق، والتحقق من شروط الفوز.</p>
+
+                <h3>بدء المباراة</h3>
+                <ol>
+                    <li>اختر فريقك: <strong>فريق النور</strong> أو <strong>فريق الظلام</strong>.</li>
+                    <li>اضغط زر الانضمام لبدء مباراة جديدة أو للانضمام إلى خصم متصل.</li>
+                    <li>يظهر اسمك وفريقك وصحتك وذهبك في الشريط العلوي.</li>
+                    <li>تبدأ المباراة بصحة قائد قدرها <strong>20</strong> و<strong>5</strong> قطع ذهبية.</li>
+                </ol>
+
+                <h3>واجهة المباراة</h3>
+                <ul>
+                    <li><strong>الشريط العلوي:</strong> يعرض صحة وذهب فريقك وخصمك، ويحدد صاحب الدور.</li>
+                    <li><strong>ساحة المعركة:</strong> ضع قواتك في الخانات المتاحة لمواجهة قوات الخصم.</li>
+                    <li><strong>يدك:</strong> تعرض الكروت المتاحة للاستدعاء، مع تكلفة الكرت وقيمته.</li>
+                    <li><strong>سوق البنك:</strong> يضم البطاقات والمعاونة والأسلحة والدروع والتعويذات والمعدات.</li>
+                </ul>
+
+                <h3>الكروت والموارد</h3>
+                <ul>
+                    <li>لكل كرت قيمة <strong>حياة</strong> تظهر بجانب أو أسفل صورته.</li>
+                    <li>لكل كرت قيمة <strong>ذهب</strong> أو تكلفة مرتبطة باستخدامه في المباراة.</li>
+                    <li>لا يمكنك استخدام كرت إذا لم يكن لديك الذهب الكافي لتكلفته.</li>
+                    <li>تنخفض حياة الكرت عند تعرضه للهجوم، ويُزال من الساحة عند وصولها إلى الصفر.</li>
+                </ul>
+
+                <h3>سير الدور</h3>
+                <ol>
+                    <li>ينتظر النظام حتى يصبح دورك فعالًا.</li>
+                    <li>استخدم الذهب لشراء كرت أو استدعاء قوة أو تفعيل عنصر من السوق.</li>
+                    <li>ضع الكروت في الخانات المتاحة داخل ساحة المعركة.</li>
+                    <li>اختر هدف الهجوم ثم اضغط زر <strong>هجوم</strong>.</li>
+                    <li>ينفذ النظام الهجوم ويحدّث الصحة والذهب تلقائيًا، ثم ينتقل الدور للخصم.</li>
+                </ol>
+
+                <h3>جدول دخل الذهب الدوري</h3>
+                <table>
+                    <thead>
+                        <tr><th>الجولة</th><th>الذهب لكل لاعب</th><th>حالة الاقتصاد واللعب</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>5 قطع</td><td>بدء المباراة واستدعاء القوات الأولى.</td></tr>
+                        <tr><td>2</td><td>4 قطع ذهب</td><td>تدفق ذهب لبناء الاستراتيجية.</td></tr>
+                        <tr><td>3</td><td>3 قطع</td><td>إدارة الموارد والتخطيط للهجوم.</td></tr>
+                        <tr><td>4</td><td>قطعتان</td><td>مرحلة اقتصاد حذر.</td></tr>
+                        <tr><td>5</td><td>قطعة واحدة</td><td>آخر دخل من البنك.</td></tr>
+                        <tr><td>6 فما فوق</td><td>0، توقف الدخل</td><td>اعتمد على القوات الموجودة في الساحة.</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>استبدال حياة القائد بالذهب (التمويل الطارئ)</h3>
+                <ul>
+                    <li>يمكنك التضحية بنقطتي حياة (2❤) من قائد فريقك للحصول على <strong>5 قطع ذهب</strong> لمواصلة المعركة.</li>
+                    <li>تتاح هذه الميزة من سوق البنك (مرة واحدة في الجولة)، أو كنافذة طوارئ إذا عجزت عن تنفيذ أي حركة ولم تملك ذهباً كافياً.</li>
+                    <li>يشترط أن تكون صحة قائدك أكثر من 2 لتتمكن من التضحية.</li>
+                </ul>
+
+                <h3>شروط الفوز</h3>
+                <p>يعلن النظام النتيجة تلقائيًا عند تحقق أحد الشرطين:</p>
+                <ol>
+                    <li><strong>النصر العسكري:</strong> وصول صحة قائد الخصم إلى <strong>0</strong>.</li>
+                    <li><strong>النصر الاقتصادي:</strong> وصول ذهبك إلى <strong>25</strong> قطعة داخل خزنتك.</li>
+                </ol>
+
+                <h3>الاتصال والانقطاع</h3>
+                <ul>
+                    <li>يظهر مؤشر الدور لتعرف متى يمكنك تنفيذ الأوامر.</li>
+                    <li>إذا انقطع اتصالك، أعد فتح المباراة أو اضغط العودة ثم انضم مجددًا.</li>
+                    <li>لا تغلق الصفحة أثناء تنفيذ هجوم أو شراء حتى يكتمل تحديث المباراة.</li>
+                </ul>
+            </article>  
+        </div>
+    </div>
+
+    <div class="attack-modal screen-hidden" id="attack-modal" role="dialog" aria-modal="true" aria-labelledby="attack-title" aria-hidden="true">
+        <div class="attack-panel">
+            <button type="button" class="guide-close" id="close-attack-modal" aria-label="إلغاء اختيار الهجوم">×</button>
+            <h2 id="attack-title">اختر من تريد الهجوم عليه</h2>
+            <div class="attack-targets" id="attack-targets"></div>
+            <p class="attack-empty-message" id="attack-empty-message" hidden>لا توجد كروت للخصم في الساحة.</p>
+        </div>
+    </div>
+
+    <div class="silence-modal screen-hidden" id="silence-modal" role="dialog" aria-modal="true" aria-labelledby="silence-title" aria-hidden="true">
+        <div class="attack-panel">
+            <button type="button" class="guide-close" id="close-silence-modal" aria-label="إلغاء اختيار المنع">×</button>
+            <h2 id="silence-title">اختر كرتًا لمنعه من الهجوم</h2>
+            <div class="attack-targets" id="silence-targets"></div>
+            <p class="attack-empty-message" id="silence-empty-message" hidden>لا توجد كروت للخصم في الساحة.</p>
+        </div>
+    </div>
+
+    <div class="card-info-modal screen-hidden" id="card-info-modal" role="dialog" aria-modal="true" aria-labelledby="card-info-title" aria-hidden="true">
+        <div class="card-info-panel">
+            <button type="button" class="guide-close" id="close-card-info-modal" aria-label="إغلاق معلومات الكرت">×</button>
+            <div class="card-info-content">
+                <img id="card-info-image" src="" alt="صورة الكرت">
+                <div class="card-info-details">
+                    <h2 id="card-info-title">اسم الكرت</h2>
+                    <div class="card-info-stats">
+                        <span>❤ الحياة: <strong id="card-info-health">0</strong></span>
+                        <span>⚔ القوة: <strong id="card-info-attack">0</strong></span>
+                        <span>◉ التكلفة: <strong id="card-info-cost">0</strong></span>
+                    </div>
+                    <p id="card-info-description">وصف الكرت</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="victory-modal screen-hidden" id="victory-modal" role="dialog" aria-modal="true" aria-labelledby="victory-title" aria-hidden="true">
+        <div class="victory-panel">
+            <span class="victory-result-icon" id="victory-result-icon" aria-hidden="true"></span>
+            <img id="victory-leader-image" src="" alt="القائد المنتصر">
+            <h2 id="victory-title">مبروك</h2>
+            <p id="victory-message"></p>
+        </div>
+    </div>
+
+    <main class="battle-screen screen-hidden" id="battle-screen" hidden>
+        <div class="battle-background" aria-hidden="true"></div>
+        <button type="button" class="battle-back-button" id="battle-back-button" aria-label="العودة إلى اختيار الفريق" title="العودة إلى اختيار الفريق">↩</button>
+
+        <header class="battle-header">
+            <section class="player-banner light-banner" id="light-player-banner">
+                <div class="player-portrait"><img src="assets/images/characters/king-dawn.png" alt="ملك الفجر"></div>
+                <div>
+                    <h1>فريق النور</h1>
+                    <p>ملك الفجر</p>
+                    <div class="player-stats"><span>❤ <strong id="light-health">20</strong></span><span>◉ <strong id="light-gold">5</strong></span></div>
+                </div>
+            </section>
+            <div class="turn-indicator">دورك</div>
+            <section class="player-banner dark-banner" id="dark-player-banner">
+                <div>
+                    <h1>فريق الظلام</h1>
+                    <p>سيد الظلال</p>
+                    <div class="player-stats"><span>❤ <strong id="dark-health">20</strong></span><span>◉ <strong id="dark-gold">5</strong></span></div>
+                </div>
+                <div class="player-portrait"><img src="assets/images/characters/lord-shadow.png" alt="سيد الظلال"></div>
+            </section>
+        </header>
+
+        <section class="battle-arena" aria-label="ساحة المعركة">
+            <div class="opponent-row battlefield-row">
+                <div class="empty-slot leader-slot computer-leader-slot" id="computer-leader-slot"></div><div class="empty-slot computer-slot" data-slot-index="1"></div><div class="empty-slot computer-slot" data-slot-index="2"></div><div class="empty-slot computer-slot" data-slot-index="3"></div><div class="empty-slot computer-slot" data-slot-index="4"></div>
+            </div>
+            <div class="arena-title">ساحة المعركة</div>
+            <div class="player-row battlefield-row">
+                <div class="empty-slot leader-slot" id="leader-slot"></div><div class="empty-slot drop-slot" data-slot-index="1"></div><div class="empty-slot drop-slot" data-slot-index="2"></div><div class="empty-slot drop-slot" data-slot-index="3"></div><div class="empty-slot drop-slot" data-slot-index="4"></div>
+            </div>
+        </section>
+
+        <aside class="battle-graveyard" id="battle-graveyard" aria-label="مقبرة المعركة">
+            <button type="button" class="graveyard-toggle" id="graveyard-toggle" aria-expanded="false" aria-controls="battle-graveyard-slots" aria-label="عرض المقبرة">
+                <span aria-hidden="true">⚰</span>
+                <small class="graveyard-toggle-count" id="graveyard-toggle-count">0</small>
+            </button>
+            <h2>المقبرة</h2>
+            <div class="battle-graveyard-slots" id="battle-graveyard-slots"></div>
+            <button type="button" class="end-turn-button" id="end-turn-button" hidden>إنهاء الدور</button>
+        </aside>
+
+        <button type="button" class="bank-toggle" id="bank-toggle" aria-expanded="false" aria-controls="battle-shop">
+            <img src="assets/images/icons/icon-bank.png" alt="">
+            <span>سوق البنك</span>
+        </button>
+        <button type="button" class="bank-toggle lottery-toggle bank-card" id="lottery-toggle" data-bank-cost="2" data-bank-name="لعبة الحظ" data-bank-action="lottery">
+            <img src="assets/images/كروت البنك/لعبة الحظ.jpg" alt="لعبة الحظ">
+            <span>لعبة الحظ</span>
+            <small>◉ 2</small>
+        </button>
+
+        <aside class="battle-shop" id="battle-shop" aria-hidden="true">
+            <div class="battle-shop-header">
+                <h2>سوق البنك</h2>
+                <button type="button" class="shop-close" id="shop-close" aria-label="إغلاق سوق البنك">✕</button>
+            </div>
+            <div class="bank-cards" aria-label="كروت البنك">
+                <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="بعث الارواح" data-card-health="10" data-card-attack="3"><img src="assets/images/كروت البنك/بعث الارواح.jpg" alt="بعث الارواح"><span>بعث الارواح</span><small>شراء: ◉ 4</small></button>
+                <button type="button" class="bank-card" data-bank-cost="5" data-bank-name="جيش المرتزقة" data-card-health="8" data-card-attack="9"><img src="assets/images/كروت البنك/جيش المرتزقة.jpg" alt="جيش المرتزقة"><span>جيش المرتزقة</span><small>شراء: ◉ 5</small></button>
+                <button type="button" class="bank-card" data-bank-cost="3" data-bank-name="ضريبة قسرية" data-card-health="10" data-card-attack="4"><img src="assets/images/كروت البنك/ضريبة قسرية.jpg" alt="ضريبة قسرية"><span>ضريبة قسرية</span><small>شراء: ◉ 3</small></button>
+                <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="لعنة الافلاس" data-card-health="7" data-card-attack="4"><img src="assets/images/كروت البنك/لعنة الافلاس.jpg" alt="لعنة الافلاس"><span>لعنة الافلاس</span><small>شراء: ◉ 4</small></button>
+            </div>
+            <button type="button" class="gold-to-health-button" id="gold-to-health-button" disabled>
+                <span>استبدال الذهب بالحياة</span>
+                <small>3 ذهب ← 6 حياة</small>
+            </button>
+            <button type="button" class="gold-to-health-button health-to-gold-button" id="health-to-gold-button" disabled>
+                <span>استبدال حياة القائد بالذهب</span>
+                <small>2 حياة قائد ← 5 ذهب</small>
+            </button>
+            <h2 class="graveyard-shop-title">كروت المقبرة</h2>
+            <div class="graveyard-bank-cards" id="graveyard-bank-cards" aria-label="كروت المقبرة المتاحة للشراء"></div>
+        </aside>
+
+        <div class="battle-news" role="status" aria-live="polite">
+            <strong>أحداث اللعبة</strong>
+            <div class="news-ticker" id="battle-news-text">اختر كرتًا أو نفّذ أمرًا لبدء دورك.</div>
+        </div>
+
+        <div class="insufficient-gold-modal screen-hidden" id="insufficient-gold-modal" role="alertdialog" aria-modal="true" aria-labelledby="insufficient-gold-title" aria-describedby="insufficient-gold-message">
+            <div class="insufficient-gold-panel">
+                <span class="insufficient-gold-icon" aria-hidden="true">◉</span>
+                <h2 id="insufficient-gold-title">لا تملك ذهبًا كافيًا</h2>
+                <p id="insufficient-gold-message"></p>
+                <button type="button" id="close-insufficient-gold">حسنًا</button>
+            </div>
+        </div>
+
+        <div class="turn-confirm-modal screen-hidden" id="turn-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="turn-confirm-title">
+            <div class="turn-confirm-panel">
+                <h2 id="turn-confirm-title">لقد أنهيت دورك بدون أي حدث</h2>
+                <div class="turn-confirm-actions">
+                    <button type="button" id="withdraw-turn-button">هل تريد الانسحاب</button>
+                    <button type="button" id="continue-turn-button">لا، سوف أواصل</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="emergency-sacrifice-modal screen-hidden" id="emergency-sacrifice-modal" role="dialog" aria-modal="true" aria-labelledby="emergency-sacrifice-title">
+            <div class="turn-confirm-panel emergency-sacrifice-panel">
+                <h2 id="emergency-sacrifice-title">عجز عن تنفيذ حركة</h2>
+                <p id="emergency-sacrifice-desc">لا تملك ذهبًا كافيًا لإنزال كروت ولا توجد أهداف هجومية متاحة لك. هل تريد التضحية بنقطتي حياة (2❤) من القائد للحصول على 5 قطع ذهب ومواصلة اللعب؟</p>
+                <div class="turn-confirm-actions">
+                    <button type="button" id="accept-sacrifice-button">نعم، تضحية بـ 2 حياة (+5 ذهب)</button>
+                    <button type="button" id="decline-sacrifice-button">لا، إنهاء الدور</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="battle-hand" id="battle-hand" aria-label="كروت فريق النور"></section>
+    </main>
+
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- اللعبة الأساسية (مشتركة بين الوضعين، لا تعرف أياً منهما) -->
+    <script src="js/game.js"></script>
+    <!-- وضع تحدي ناس حقيقيين: الأونلاين فقط -->
+    <script src="js/online.js"></script>
+    <!-- وضع تحدي الكمبيوتر: العقل الإلكتروني فقط -->
+    <script src="js/ai-engine.js"></script>
+    <script src="js/ai.js"></script>
+    <!-- شاشة الترحيب وتوجيه اللاعب إلى الوضع الذي اختاره -->
+    <script src="js/main.js"></script>
+
+</body>
+</html>

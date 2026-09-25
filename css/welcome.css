@@ -1,0 +1,94 @@
+/* شاشة الترحيب واختيار الوضع (ناس حقيقيون / الكمبيوتر) */
+.welcome-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    width: min(640px, 92vw);
+    padding: 30px 34px 34px;
+    text-align: center;
+    border: 2px solid var(--gold-primary);
+    border-radius: 6px;
+    background: linear-gradient(155deg, rgba(19, 24, 31, .97), rgba(8, 12, 18, .97));
+    box-shadow: 0 0 35px rgba(0, 0, 0, .9), inset 0 0 25px rgba(212, 175, 55, .12);
+}
+
+.welcome-panel h1 {
+    color: var(--gold-light);
+    font-size: clamp(28px, 4vw, 44px);
+    text-shadow: 0 2px 6px #000;
+}
+
+.welcome-greeting {
+    margin-top: 12px;
+    color: #e7e7e7;
+    line-height: 1.8;
+    font-size: clamp(15px, 1.6vw, 19px);
+}
+
+.welcome-name-box {
+    display: grid;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.welcome-name-box label {
+    color: var(--gold-light);
+    font-size: 18px;
+}
+
+.welcome-name-box input {
+    width: min(100%, 420px);
+    margin: 0 auto;
+    padding: 14px 16px;
+    border: 1px solid var(--gold-primary);
+    border-radius: 8px;
+    background: rgba(8, 12, 18, .9);
+    color: #fff;
+    font-family: inherit;
+    font-size: 18px;
+    text-align: center;
+    outline: none;
+    user-select: text;
+}
+
+.welcome-name-box input:focus {
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, .45);
+}
+
+.welcome-error {
+    color: #ff9b9b;
+    font-size: 15px;
+}
+
+.welcome-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 24px;
+}
+
+.welcome-actions .cta-button {
+    top: 0;
+    min-width: 220px;
+}
+
+/* شاشة اختيار الفريق/الخصم تتغيّر حسب الوضع */
+.selection-screen.mode-online .factions-container .cta-button {
+    display: none;            /* أونلاين: يُختار الفريق عند تحدي لاعب */
+}
+
+.selection-screen.mode-ai .online-lobby {
+    display: none;            /* الكمبيوتر: لا قائمة لاعبين */
+}
+
+.mode-back-button {
+    margin-inline-start: 10px;
+}
+
+/* إصلاح: زر الرجوع داخل المعركة كان مغطّى بشريط الفريق فلا يُنقر */
+.battle-back-button {
+    z-index: 20;
+}

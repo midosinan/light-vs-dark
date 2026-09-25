@@ -1,0 +1,13 @@
+:root {
+    --gold-primary: #d4af37;
+    --gold-light: #f3e5ab;
+    --gold-dark: #8a6d1c;
+    --blue-dawn: #1a5276;
+    --blue-glow: #00aaff;
+    --red-shadow: #7b1113;
+    --red-glow: #ff2200;
+    --bg-dark: #0a0a0c;
+    --panel-bg: rgba(15, 18, 28, 0.88);
+    --border-color: rgba(212, 175, 55, 0.4);
+    --font-fantasy: 'Amiri', 'Traditional Arabic', serif;
+}
