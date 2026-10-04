@@ -7,6 +7,8 @@
 let socket = null;                     // لا يُنشأ الاتصال إلا عند اختيار "تحدي ناس حقيقيين"
 let leavingLobby = false;              // نتجاهل رسائل الانقطاع عندما نغادر الأونلاين بإرادتنا
 let onlineInMatch = false;             // هل توجد مباراة أونلاين جارية؟
+let onlinePaused = false;              // تتوقف الحركات خلال مهلة إعادة اتصال أحد اللاعبين
+const ONLINE_SESSION_KEY = 'faction-online-session';
 const onlinePlayerList = document.querySelector('#online-player-list');
 let currentRoomId = null;
 let currentMatchPlayers = [];
@@ -19,6 +21,15 @@ const lastRemoteSeq = {};              // آخر رقم رسالة استُلم 
 let applyingRemoteState = false;       // نمنع إعادة الإرسال أثناء تطبيق حالة قادمة من الخصم
 let lobbyListenersAttached = false;
 
+function readOnlineSessionId() {
+    try { return localStorage.getItem(ONLINE_SESSION_KEY) || ''; } catch (error) { return ''; }
+}
+
+function saveOnlineSessionId(sessionId) {
+    if (!sessionId) return;
+    try { localStorage.setItem(ONLINE_SESSION_KEY, sessionId); } catch (error) { /* التخزين غير متاح */ }
+}
+
 
 // ربط مستمعات الخادم. تُستدعى مرة واحدة فقط: تكرارها كان سيجعل كل رسالة تُعالَج مرتين
 function attachLobbyListeners() {
@@ -26,7 +37,11 @@ function attachLobbyListeners() {
     lobbyListenersAttached = true;
 
     // نعيد الانضمام للردهة عند كل اتصال (يشمل إعادة الاتصال بعد الانقطاع)
-    socket.on('connect', () => { if (activeMode === OnlineMode) socket.emit('player:join', { name: localPlayerName }); });
+    socket.on('connect', () => {
+        if (activeMode === OnlineMode) {
+            socket.emit('player:join', { name: localPlayerName, sessionId: readOnlineSessionId() });
+        }
+    });
     socket.on('connect_error', () => {
         if (activeMode === OnlineMode) onlinePlayerList.innerHTML = '<p class="online-empty-state">الخادم غير متصل الآن. حاول لاحقاً، أو ارجع واختر تحدي الكمبيوتر.</p>';
     });
@@ -36,7 +51,28 @@ function attachLobbyListeners() {
         localSocketId = id;
         localPlayerName = name;
     });
+    socket.on('player:session', ({ sessionId }) => saveOnlineSessionId(sessionId));
     socket.on('lobby:list', (players) => { if (activeMode === OnlineMode) renderOnlinePlayers(players); });
+
+    socket.on('challenge:error', ({ message }) => updateBattleNews(message || 'تعذر إرسال التحدي.'));
+    socket.on('match:paused', () => {
+        if (activeMode !== OnlineMode || !onlineInMatch) return;
+        onlinePaused = true;
+        isPlayerTurn = false;
+        setTurnLockState();
+        updateBattleNews('انقطع اتصال الخصم مؤقتًا. ستبقى المباراة محفوظة لوقت قصير.');
+    });
+    socket.on('match:resume', (data) => resumeOnlineMatch(data));
+    socket.on('match:resumed', (data) => resumeOnlineMatch(data));
+    socket.on('match:resume-failed', () => {
+        if (activeMode !== OnlineMode || !onlineInMatch) return;
+        onlinePaused = false;
+        currentRoomId = null;
+        onlineInMatch = false;
+        lockBattleAfterGameOver();
+        document.querySelector('.turn-indicator').textContent = 'انتهت المباراة';
+        updateBattleNews('انتهت المباراة لأن الاتصال لم يعد خلال المهلة المحددة.');
+    });
 
     socket.on('challenge:incoming', ({ challengerName, roomId, forcedTeam }) => {
         if (activeMode !== OnlineMode || (onlineInMatch && !isGameOver)) return; // لا نقبل تحدياً أثناء مباراة جارية
@@ -83,9 +119,7 @@ function renderOnlinePlayers(players) {
             if (!targetPlayer) return;
             pendingChallengeTarget = targetPlayer;
             const teamModal = document.querySelector('#challenge-team-modal');
-            const teamMessage = document.querySelector('#challenge-team-message');
-            if (teamModal && teamMessage) {
-                teamMessage.textContent = `اختر الفريق الذي ستلعب به ضد ${targetPlayer.name}. سيتم إجبار الخصم على الفريق الآخر.`;
+            if (teamModal) {
                 teamModal.classList.remove('screen-hidden');
             } else {
                 socket.emit('player:challenge', { targetId: targetPlayer.id, team: 'light' });
@@ -110,6 +144,7 @@ function startOnlineMatch({ roomId, players, currentTurnId }) {
     currentMatchPlayers = players || [];
     // أي بداية مباراة قادمة من الخادم هي مباراة أونلاين، مهما كانت قيمة mode المرسلة
     onlineInMatch = true;
+    onlinePaused = false;
     matchFirstTurnId = currentTurnId;
     onlineSeq = 0;
     Object.keys(lastRemoteSeq).forEach((key) => delete lastRemoteSeq[key]);
@@ -128,18 +163,20 @@ function startOnlineMatch({ roomId, players, currentTurnId }) {
 
 function handleOnlineTurn({ currentTurnId }) {
     if (!onlineInMatch || isGameOver) return;
+    onlinePaused = false;
     const wasPlayerTurn = isPlayerTurn;
     isPlayerTurn = socket.id === currentTurnId;
     if (isPlayerTurn) {
         turnActions.player = false;
         turnHasNoAvailableMoves = false;
+        cardsDeployedThisTurn = 0;
         resetAttackAvailability();
     }
     setTurnLockState();
     updateAttackButtons();
     updateBankControls();
     endTurnButton.hidden = !isPlayerTurn;
-    endTurnButton.textContent = 'إنهاء الدور';
+    endTurnButton.textContent = battleText('endTurn', 'End Turn');
     updateTurnIndicator();
     if (isPlayerTurn) {
         updateBattleNews(`بدأ دورك الآن (المرحلة ${battlePhase}).`);
@@ -150,9 +187,14 @@ function handleOnlineTurn({ currentTurnId }) {
 }
 
 function handleOnlineMatchEnded({ reason } = {}) {
+    if (reason === 'challenge-expired') {
+        updateBattleNews('انتهت مدة التحدي ولم تتم الموافقة عليه.');
+        return;
+    }
     const wasOnline = onlineInMatch;
     currentRoomId = null;
     onlineInMatch = false;
+    onlinePaused = false;
     if (!wasOnline || isGameOver) return;
     if (reason === 'opponent-left') {
         lockBattleAfterGameOver();
@@ -168,12 +210,27 @@ function handleSocketDisconnect() {
         onlinePlayerList.innerHTML = '<p class="online-empty-state">انقطع الاتصال بالخادم. جارٍ محاولة إعادة الاتصال...</p>';
     }
     if (!onlineInMatch) return;
-    currentRoomId = null;
-    onlineInMatch = false;
+    onlinePaused = true;
     if (isGameOver) return;
-    lockBattleAfterGameOver();
-    document.querySelector('.turn-indicator').textContent = 'انقطع الاتصال';
-    updateBattleNews('انقطع اتصالك بالخادم فانتهت المباراة. اضغط زر العودة للرجوع إلى الشاشة الرئيسية.');
+    document.querySelector('.turn-indicator').textContent = 'جارٍ إعادة الاتصال';
+    updateBattleNews('انقطع اتصالك مؤقتًا. ستستأنف المباراة تلقائيًا عند عودة الاتصال.');
+}
+
+function resumeOnlineMatch({ roomId, players, currentTurnId, state } = {}) {
+    if (activeMode !== OnlineMode || !roomId) return;
+    currentRoomId = roomId;
+    currentMatchPlayers = players || currentMatchPlayers;
+    onlineInMatch = true;
+    onlinePaused = state !== 'active';
+    matchFirstTurnId = currentTurnId;
+    isPlayerTurn = !onlinePaused && socket.id === currentTurnId;
+    if (!battleScreen || battleScreen.classList.contains('screen-hidden')) {
+        startOnlineMatch({ roomId, players: currentMatchPlayers, currentTurnId });
+        return;
+    }
+    setTurnLockState();
+    updateTurnIndicator();
+    updateBattleNews(state === 'active' ? 'تمت استعادة المباراة بعد إعادة الاتصال.' : 'تمت استعادة الغرفة، بانتظار عودة اللاعب الآخر.');
 }
 
 function leaveOnlineMatch() {
@@ -183,10 +240,11 @@ function leaveOnlineMatch() {
     }
     currentRoomId = null;
     if (onlineInMatch) onlineInMatch = false;
+    onlinePaused = false;
 }
 
 function broadcastMatchAction(action) {
-    if (!socket || !onlineInMatch || !currentRoomId) return;
+    if (!socket || !onlineInMatch || onlinePaused || !currentRoomId) return;
     socket.emit('match:action', { roomId: currentRoomId, ...action });
 }
 
@@ -219,7 +277,7 @@ function buildOnlineSnapshot() {
         blocked: [...tempEffects.blockedCards],
         goldToHealthUsed: { light: goldToHealthUsed.light, dark: goldToHealthUsed.dark },
         healthToGoldUsed: { light: healthToGoldUsed.light, dark: healthToGoldUsed.dark },
-        graveyard: graveyardCards.map((card) => ({ team: card.team, name: card.name })),
+        graveyard: graveyardCards.map((card) => ({ team: card.team, name: card.id })),
         result: matchResult
     };
 }
@@ -239,10 +297,10 @@ function applyBoardState(slots, boardData, team, isOwn) {
         }
         const health = clampNumber(data.health, 1, 99, definition.health);
         slot.classList.add('occupied-slot');
-        slot.dataset.cardName = definition.name;
+        slot.dataset.cardName = definition.id;
         slot.dataset.health = String(health);
         slot.dataset.attack = String(definition.attack);
-        if (definition.name === 'معالجة النور') slot.dataset.healUses = String(clampNumber(data.healUses, 0, 4, 0));
+        if (definition.id === 'light-healer') slot.dataset.healUses = String(clampNumber(data.healUses, 0, 4, 0));
         else delete slot.dataset.healUses;
         if (data.attackUsed) slot.dataset.attackUsed = 'true';
         else delete slot.dataset.attackUsed;
@@ -259,7 +317,7 @@ function rebuildGraveyard(entries) {
         if (!entry || (entry.team !== 'light' && entry.team !== 'dark')) return;
         const definition = resolveCardDefinition(String(entry.name), entry.team);
         if (!definition) return;
-        const element = createGraveyardElement(definition.name, definition.image);
+        const element = createGraveyardElement(definition.id, definition.image, entry.team);
         battleGraveyardSlots.appendChild(element);
         graveyardCards.push({ ...definition, team: entry.team, element });
     });
@@ -270,7 +328,7 @@ function rebuildGraveyard(entries) {
 function captureBattleSummary() {
     const playerTeam = battleScreen.dataset.selectedTeam;
     const read = (slots) => [...slots].map((slot) => (
-        slot.classList.contains('occupied-slot') ? { name: slot.dataset.cardName, health: Number(slot.dataset.health) } : null
+        slot.classList.contains('occupied-slot') ? { id: slot.dataset.cardName, health: Number(slot.dataset.health) } : null
     ));
     return {
         mine: read(playerDropSlots),
@@ -279,21 +337,51 @@ function captureBattleSummary() {
     };
 }
 
+function getTranslatedCardName(cardId, team) {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const t = translations[lang];
+    const teamCards = t.cards[team];
+    const cardIndex = battleCards[team].findIndex(c => c.id === cardId);
+    if (cardIndex >= 0 && teamCards[cardIndex]) {
+        return teamCards[cardIndex].name;
+    }
+    return battleCards[team].find(c => c.id === cardId)?.name || cardId;
+}
+
 function describeRemoteChanges(before) {
     const after = captureBattleSummary();
     const messages = [];
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const playerTeam = battleScreen.dataset.selectedTeam || 'light';
+    
     after.opp.forEach((card, index) => {
         const previous = before.opp[index];
-        if (card && (!previous || previous.name !== card.name)) messages.push(`الخصم أنزل ${card.name} في الساحة.`);
-        else if (card && previous && card.health < previous.health) messages.push(`${card.name} (الخصم) خسر ${previous.health - card.health} حياة.`);
-        else if (!card && previous) messages.push(`سقط ${previous.name} من ساحة الخصم.`);
+        const opponentTeam = playerTeam === 'light' ? 'dark' : 'light';
+        if (card && (!previous || previous.id !== card.id)) {
+            const cardName = getTranslatedCardName(card.id, opponentTeam);
+            messages.push(`${lang === 'ar' ? 'الخصم أنزل' : 'Opponent deployed'} ${cardName} ${lang === 'ar' ? 'في الساحة' : 'on the field'}.`);
+        }
+        else if (card && previous && card.health < previous.health) {
+            const cardName = getTranslatedCardName(card.id, opponentTeam);
+            messages.push(`${cardName} (${lang === 'ar' ? 'الخصم' : 'Opponent'}) ${lang === 'ar' ? 'خسر' : 'lost'} ${previous.health - card.health} ${lang === 'ar' ? 'حياة' : 'health'}.`);
+        }
+        else if (!card && previous) {
+            const cardName = getTranslatedCardName(previous.id, opponentTeam);
+            messages.push(`${cardName} ${lang === 'ar' ? 'سقط من ساحة الخصم' : 'fell from opponent field'}.`);
+        }
     });
     after.mine.forEach((card, index) => {
         const previous = before.mine[index];
-        if (card && previous && card.health < previous.health) messages.push(`${card.name} خسر ${previous.health - card.health} حياة بسبب هجوم الخصم.`);
-        else if (!card && previous) messages.push(`سقط ${previous.name} من ساحتك.`);
+        if (card && previous && card.health < previous.health) {
+            const cardName = getTranslatedCardName(card.id, playerTeam);
+            messages.push(`${cardName} ${lang === 'ar' ? 'خسر' : 'lost'} ${previous.health - card.health} ${lang === 'ar' ? 'حياة بسبب هجوم الخصم' : 'health due to opponent attack'}.`);
+        }
+        else if (!card && previous) {
+            const cardName = getTranslatedCardName(previous.id, playerTeam);
+            messages.push(`${cardName} ${lang === 'ar' ? 'سقط من ساحتك' : 'fell from your field'}.`);
+        }
     });
-    if (after.myHealth < before.myHealth) messages.push(`خسر قائدك ${before.myHealth - after.myHealth} حياة.`);
+    if (after.myHealth < before.myHealth) messages.push(`${lang === 'ar' ? 'خسر قائدك' : 'Your leader lost'} ${before.myHealth - after.myHealth} ${lang === 'ar' ? 'حياة' : 'health'}.`);
     messages.slice(0, 6).forEach((message) => updateBattleNews(message));
 }
 
@@ -359,7 +447,7 @@ function applyRemoteAction(action) {
 }
 
 function finishOnlineTurn() {
-    if (!socket || !currentRoomId) return;
+    if (!socket || !currentRoomId || onlinePaused) return;
     const playerTeam = battleScreen.dataset.selectedTeam;
     isPlayerTurn = false;
     hideEmergencySacrificeModal();
@@ -394,7 +482,7 @@ const OnlineMode = {
         }
         attachLobbyListeners();
         onlinePlayerList.innerHTML = '<p>جارٍ تحميل اللاعبين...</p>';
-        if (socket.connected) socket.emit('player:join', { name: localPlayerName });
+        if (socket.connected) socket.emit('player:join', { name: localPlayerName, sessionId: readOnlineSessionId() });
         else if (socket.connect) socket.connect();
     },
 
