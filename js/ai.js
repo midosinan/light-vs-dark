@@ -10,7 +10,7 @@
     // إعدادات "قوة التفكير": زيادة الأرقام تجعل الكمبيوتر أقوى وأبطأ في التفكير
     const AI_LEVEL = { budgetMs: 300, maxN: 40, horizon: 6, topK: 7 };
     const THINK_DELAY_MS = 500;   // مهلة قبل كل حركة (ليتابعها اللاعب)
-    const KEY_BY_NAME = { 'درع النور': 'shield', 'معالجة النور': 'healer', 'الصقر الجارح': 'falcon', 'سيف العدالة': 'sword', 'الجار الصامت': 'silent' };
+    const KEY_BY_NAME = { 'light-shield': 'shield', 'light-healer': 'healer', 'falcon': 'falcon', 'sword-of-justice': 'sword', 'silent-neighbor': 'silent' };
 
     const statsKey = (team) => (team === 'dark' ? 'darkTeam' : 'lightTeam');
     const otherTeam = (team) => (team === 'dark' ? 'light' : 'dark');
@@ -20,15 +20,15 @@
     // ------------------------------------------------------------------ عرض كرت الكمبيوتر في ساحته
     function aiRenderCard(slot, card) {
         slot.classList.add('occupied-slot');
-        slot.dataset.cardName = card.name;
+        slot.dataset.cardName = card.id;
         slot.dataset.health = card.health;
         slot.dataset.attack = card.attack;
-        if (card.name === 'معالجة النور') slot.dataset.healUses = '0';
+        if (card.id === 'light-healer') slot.dataset.healUses = '0';
         slot.innerHTML = deployedCardMarkup(card, false, false);
     }
 
     // ------------------------------------------------------------------ نقل حالة اللعبة الحقيقية إلى المحرك
-    const toSim = (c) => ({ name: c.name, key: KEY_BY_NAME[c.name] || null, cost: c.cost, hp: c.health, atk: c.attack, isBank: Boolean(c.isBankCard) });
+    const toSim = (c) => ({ name: c.id, key: KEY_BY_NAME[c.id] || null, cost: c.cost, hp: c.health, atk: c.attack, isBank: Boolean(c.isBankCard) });
 
     function bankDefinitions() {
         return [...battleShop.querySelectorAll('.bank-card[data-bank-cost]')]
@@ -51,6 +51,7 @@
         dropDiscount[team].forEach((name) => { drop[name] = 1; });
         return {
             hp: stats.health, gold: stats.gold, board, cards,
+            deployedThisTurn: isComputer ? cardsDeployedThisTurn : 0,
             deployed: new Set(deployedCardNames[team]),
             grave: graveyardCards.filter((c) => c.team === team).map((c) => ({ def: toSim(c) })),
             gth: goldToHealthUsed[team], htg: healthToGoldUsed[team], drop
@@ -71,10 +72,24 @@
     // ------------------------------------------------------------------ تنفيذ الحركات على اللعبة الحقيقية
     const say = (message) => updateBattleNews(`🤖 ${message}`);
 
+    function getTranslatedCardName(cardId, team) {
+        const lang = document.documentElement.getAttribute('lang') || 'en';
+        const t = translations[lang];
+        const teamCards = t.cards[team];
+        const cardIndex = battleCards[team].findIndex(c => c.id === cardId);
+        if (cardIndex >= 0 && teamCards[cardIndex]) {
+            return teamCards[cardIndex].name;
+        }
+        return battleCards[team].find(c => c.id === cardId)?.name || cardId;
+    }
+
     function aiDeploy(team, simDef, slotIndex, allowSacrifice) {
-        const def = battleCards[team].find((c) => c.name === simDef.name);
+        const def = battleCards[team].find((c) => c.id === simDef.name || c.name === simDef.name);
         const slot = computerDropSlots[slotIndex];
         if (!def || !slot || slot.classList.contains('occupied-slot') || deployedCardNames[team].has(def.name)) return false;
+
+        if (cardsDeployedThisTurn >= AIEngine.RULES.maxDeployPerTurn) return false;
+
         const stats = playerStats[statsKey(team)];
         const cost = getDropCost(team, def);
         if (stats.gold < cost) {
@@ -84,9 +99,11 @@
         stats.gold -= cost;
         deployedCardNames[team].add(def.name);
         dropDiscount[team].delete(def.name);
+        cardsDeployedThisTurn += 1;
         aiRenderCard(slot, def);
         renderPlayerStats();
-        say(`الكمبيوتر أنزل ${def.name} في الساحة (تكلفة ${cost}).`);
+        const translatedName = getTranslatedCardName(def.id, team);
+        say(`الكمبيوتر أنزل ${translatedName} في الساحة (تكلفة ${cost}).`);
         return true;
     }
 
@@ -103,7 +120,7 @@
 
     function aiHeal(team, healerIndex, target) {
         const healerSlot = computerDropSlots[healerIndex];
-        if (!healerSlot || healerSlot.dataset.cardName !== 'معالجة النور') return false;
+        if (!healerSlot || healerSlot.dataset.cardName !== 'light-healer') return false;
         const healerHealth = Number(healerSlot.dataset.health), uses = Number(healerSlot.dataset.healUses || 0);
         if (healerHealth <= 2 || uses >= 4) return false;
         const stats = playerStats[statsKey(team)];
@@ -120,7 +137,7 @@
             const max = resolveCardDefinition(targetSlot.dataset.cardName, team)?.health ?? Infinity;
             const before = Number(targetSlot.dataset.health);
             const after = Math.min(max, before + 2);
-            gained = after - before; targetName = targetSlot.dataset.cardName;
+            gained = after - before; targetName = getTranslatedCardName(targetSlot.dataset.cardName, team);
             targetSlot.dataset.health = after;
             targetSlot.querySelector('.deployed-card-health strong').textContent = after;
         }
@@ -135,14 +152,16 @@
     function aiSilence(team, neighborIndex, targetIndex) {
         const neighborSlot = computerDropSlots[neighborIndex];
         const targetSlot = playerDropSlots[targetIndex];
-        if (!neighborSlot || !targetSlot || battlePhase < 2 || neighborSlot.dataset.cardName !== 'الجار الصامت' || neighborSlot.dataset.attackUsed === 'true') return false;
+        if (!neighborSlot || !targetSlot || battlePhase < 2 || neighborSlot.dataset.cardName !== 'silent-neighbor' || neighborSlot.dataset.attackUsed === 'true') return false;
         if (!targetSlot.classList.contains('occupied-slot') || isSlotBlocked(targetSlot)) return false;
         const key = getBlockKey(targetSlot);
         tempEffects.blockedCards.add(key);
         tempEffects.silencedBy.set(key, 'الجار الصامت');
         targetSlot.classList.add('blocked-card');
         turnActions.computer = true;
-        say(`الجار الصامت منع ${targetSlot.dataset.cardName} من الهجوم في دورك القادم.`);
+        const playerTeam = battleScreen.dataset.selectedTeam;
+        const translatedName = getTranslatedCardName(targetSlot.dataset.cardName, playerTeam);
+        say(`الجار الصامت منع ${translatedName} من الهجوم في دورك القادم.`);
         return true;
     }
 
@@ -160,7 +179,8 @@
         });
         renderPlayerStats();
         turnActions.computer = true;
-        say(`الكمبيوتر اشترى ${bankDef.name} من البنك مقابل ${cost} ذهب.`);
+        const translatedName = getTranslatedCardName(bankDef.name, team) || bankDef.name;
+        say(`الكمبيوتر اشترى ${translatedName} من البنك مقابل ${cost} ذهب.`);
         return aiDeploy(team, bankDef, slotIndex, false);
     }
 
@@ -179,7 +199,8 @@
         updateGraveyardBadge();
         renderPlayerStats();
         turnActions.computer = true;
-        say(`الكمبيوتر اشترى ${entry.name} من المقبرة مقابل ${purchaseCost} ذهب.`);
+        const translatedName = getTranslatedCardName(entry.id, team) || entry.name;
+        say(`الكمبيوتر اشترى ${translatedName} من المقبرة مقابل ${purchaseCost} ذهب.`);
         return aiDeploy(team, { name: entry.name }, slotIndex, false);
     }
 
@@ -191,7 +212,7 @@
             stats.gold -= 3; stats.health = Math.min(20, stats.health + 6);
             renderLeaderInSlot(computerLeaderSlot, team);
         } else {
-            const healerSlot = [...computerDropSlots].find((s) => s.dataset.cardName === 'معالجة النور');
+            const healerSlot = [...computerDropSlots].find((s) => s.dataset.cardName === 'light-healer');
             if (!healerSlot || Number(healerSlot.dataset.health) >= 12) return false;
             stats.gold -= 3;
             const health = Math.min(12, Number(healerSlot.dataset.health) + 6);
@@ -245,6 +266,7 @@
         AIMode.stats.turns += 1;
         resetAttackAvailability();
         turnActions.computer = false;
+        cardsDeployedThisTurn = 0;
         document.querySelector('.turn-indicator').textContent = `المرحلة ${battlePhase} - دور الكمبيوتر`;
         lightPlayerBanner.classList.toggle('active-player', team === 'light');
         darkPlayerBanner.classList.toggle('active-player', team === 'dark');
@@ -253,7 +275,7 @@
         // لا حركات متاحة: يضحّي بحياة القائد إن أمكن، وإلا يخسر إن كانت ساحته فارغة وحياته منخفضة
         if (!computerHasAnyMove(team)) {
             const stats = playerStats[statsKey(team)];
-            if (stats.health > 2 && !healthToGoldUsed[team]) exchangeHealthForGold(team, true);
+            if (battlePhase > 1 && stats.health > 2 && !healthToGoldUsed[team]) exchangeHealthForGold(team, true);
             else if ([...computerDropSlots].every((s) => !s.classList.contains('occupied-slot')) && stats.health <= 2) {
                 isGameOver = true; isPlayerTurn = false; endTurnButton.hidden = true;
                 showVictoryModal(otherTeam(team));
@@ -296,6 +318,7 @@
         isPlayerTurn = true;
         turnActions.player = false;
         turnHasNoAvailableMoves = false;
+        cardsDeployedThisTurn = 0;
         resetAttackAvailability();
         setTurnLockState();
         updateAttackButtons();
@@ -319,7 +342,7 @@
             AIMode.session += 1;
             showBattleScreen(playerTeam, true);
             updateTurnIndicator();
-            updateBattleNews('بدأت مباراة ضد الكمبيوتر. ابدأ بإنزال كروتك ثم اضغط إنهاء الدور.');
+            updateBattleNews(battleText('aiStarted', 'The computer match has started. Deploy your cards, then end your turn.'));
         },
 
         // يستدعيها game.js عندما ينهي اللاعب دوره (بعد التحقق من قاعدة "لا تنهِ دورك بلا حدث")
