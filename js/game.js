@@ -15,6 +15,11 @@ const openGuide = document.querySelector('#open-guide');
 const closeGuide = document.querySelector('#close-guide');
 const bankToggle = document.querySelector('#bank-toggle');
 const battleShop = document.querySelector('#battle-shop');
+const shopTitle = document.querySelector('#shop-title');
+const bankInventory = document.querySelector('#bank-inventory');
+const graveyardInventory = document.querySelector('#graveyard-inventory');
+const bankShopChoice = document.querySelector('#shop-bank-choice');
+const graveyardShopChoice = document.querySelector('#shop-graveyard-choice');
 const goldToHealthButton = document.querySelector('#gold-to-health-button');
 const healthToGoldButton = document.querySelector('#health-to-gold-button');
 const emergencySacrificeModal = document.querySelector('#emergency-sacrifice-modal');
@@ -59,9 +64,24 @@ const closeInsufficientGold = document.querySelector('#close-insufficient-gold')
 const turnConfirmModal = document.querySelector('#turn-confirm-modal');
 const withdrawTurnButton = document.querySelector('#withdraw-turn-button');
 const continueTurnButton = document.querySelector('#continue-turn-button');
+const handToggle = document.querySelector('#hand-toggle');
+const handModal = document.querySelector('#hand-modal');
+const closeHandModal = document.querySelector('#close-hand-modal');
+const handModalContent = document.querySelector('#hand-modal-content');
 const ECONOMIC_VICTORY_GOLD = 25;
+function battleText(key, fallback) {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    return getNestedValue(translations[lang], `battle.${key}`) || fallback;
+}
+
+function cardText(key, fallback) {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    return getNestedValue(translations[lang], `card.${key}`) || fallback;
+}
+
 let isPlayerTurn = true;
 let deployedCardCount = 0;
+let cardsDeployedThisTurn = 0;
 let battlePhase = 1;
 let isGameOver = false;
 let matchResult = null;           // نتيجة المباراة { winner, type }
@@ -78,7 +98,7 @@ function notifyStateChange() { if (activeMode && activeMode.afterAction) activeM
 const DISCOUNTED_DROP_COST = 1;
 const dropDiscount = { light: new Set(), dark: new Set() };
 function getDropCost(team, card) {
-    return (card.isBankCard || dropDiscount[team].has(card.name)) ? DISCOUNTED_DROP_COST : card.cost;
+    return (card.isBankCard || dropDiscount[team].has(card.id)) ? DISCOUNTED_DROP_COST : card.cost;
 }
 const turnActions = { player: false, computer: false };
 const goldToHealthUsed = { light: false, dark: false };
@@ -97,6 +117,17 @@ const tempEffects = {
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function getTranslatedCardName(cardId, team) {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const t = translations[lang];
+    const teamCards = t.cards[team];
+    const cardIndex = battleCards[team].findIndex(c => c.id === cardId);
+    if (cardIndex >= 0 && teamCards[cardIndex]) {
+        return teamCards[cardIndex].name;
+    }
+    return battleCards[team].find(c => c.id === cardId)?.name || cardId;
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -128,7 +159,7 @@ function getAttackBlockReason(attackerSlot, targetSlot) {
     if (isSlotBlocked(attackerSlot)) return 'الكرت المهاجم ممنوع من الهجوم (الجار الصامت)';
     if (attackerAttack < targetAttack) return 'قوة غير كافية';
     if (targetSlot.dataset.cardName === 'سيف العدالة' && attackerAttack <= targetAttack) return 'يحتاج قوة أعلى';
-    if (targetSlot.dataset.cardName === 'معالجة النور') {
+    if (targetSlot.dataset.cardName === 'light-healer') {
         const targetSlots = targetSlot.classList.contains('computer-slot') ? computerDropSlots : playerDropSlots;
         const hasFalcon = [...targetSlots].some((slot) => slot.classList.contains('occupied-slot') && slot.dataset.cardName === 'الصقر الجارح');
         if (hasFalcon) return 'مخفية من الصقر الجارح';
@@ -136,7 +167,93 @@ function getAttackBlockReason(attackerSlot, targetSlot) {
     return '';
 }
 
+function localizeBattleNews(message) {
+    if ((document.documentElement.getAttribute('lang') || 'en') === 'ar') return message;
+    let text = String(message);
+    const replacements = [
+        ['الكمبيوتر يفكر...', 'Computer is thinking...'],
+        ['الكمبيوتر أنزل', 'Computer deployed'],
+        ['في الساحة (تكلفة ', ' on the battlefield (cost '],
+        ['الكمبيوتر عجز عن أي حركة وانسحب من المباراة.', 'The computer could not make a move and withdrew from the match.'],
+        ['الكمبيوتر لعب لعبة الحظ وكسب 10 ذهبات!', 'The computer played the lottery and won 10 gold!'],
+        ['الكمبيوتر لعب لعبة الحظ وخسر 5 ذهبات.', 'The computer played the lottery and lost 5 gold.'],
+        ['الكمبيوتر لعب لعبة الحظ ولم يكسب شيئاً.', 'The computer played the lottery and won nothing.'],
+        ['الكمبيوتر اشترى', 'Computer bought'],
+        ['الكمبيوتر استبدل 3 ذهب بـ 6 حياة لقائده.', 'The computer exchanged 3 gold for 6 leader health.'],
+        ['الكمبيوتر استبدل 3 ذهب بـ 6 حياة لمعالجة النور.', 'The computer exchanged 3 gold for 6 healer health.'],
+        ['تعذر إرسال التحدي.', 'Unable to send the challenge.'],
+        ['انقطع اتصال الخصم مؤقتًا. ستبقى المباراة محفوظة لوقت قصير.', 'The opponent disconnected temporarily. The match will be saved for a short time.'],
+        ['انتهت المباراة لأن الاتصال لم يعد خلال المهلة المحددة.', 'The match ended because the connection did not return in time.'],
+        ['انتهت مدة التحدي ولم تتم الموافقة عليه.', 'The challenge expired because it was not accepted.'],
+        ['انقطع اتصال الخصم، وتم احتساب المباراة لصالحك.', 'The opponent disconnected. The match is awarded to you.'],
+        ['انقطع اتصالك مؤقتًا. ستستأنف المباراة تلقائيًا عند عودة الاتصال.', 'You temporarily disconnected. The match will resume automatically when you reconnect.'],
+        ['تمت استعادة المباراة بعد إعادة الاتصال.', 'The match was restored after reconnecting.'],
+        ['تمت استعادة غرفة المباراة.', 'The match room was restored.'],
+        ['انتهى دورك، بانتظار الخصم.', 'Your turn ended; waiting for the opponent.'],
+        ['بدأت مباراة عبر الإنترنت ضد ', 'Online match started against '],
+        ['بدأ دورك الآن (المرحلة ', 'Your turn began (Round '],
+        ['دور الخصم الآن.', "It is the opponent's turn."],
+        ['تم إرسال تحدي إلى ', 'Challenge sent to '],
+        ['، وقررت اللعب كفريق ', ', you chose the '],
+        [' مع اختيارك لفريق ', ' with the '],
+        ['فريق النور', 'Light Team'],
+        ['فريق الظلام', 'Dark Team'],
+        ['النور', 'Light'],
+        ['الظلام', 'Dark'],
+        ['معالجة النور عالجت', 'The Light Healer restored'],
+        ['الجار الصامت منع', 'The Silent Neighbor blocked'],
+        ['بدأت مباراة ضد الكمبيوتر. ابدأ بإنزال كروتك ثم اضغط إنهاء الدور.', 'The computer match has started. Deploy your cards, then end your turn.'],
+        ['انضممت إلى فريق النور. اختر كرتًا من يدك وابدأ الهجوم.', 'You joined the Light Team. Deploy a card and begin the attack.'],
+        ['انضممت إلى فريق الظلام. اختر كرتًا من يدك وابدأ الهجوم.', 'You joined the Dark Team. Deploy a card and begin the attack.'],
+        ['اضغط خانة فارغة لإنزال الكرت، أو اضغط الكرت مجدداً للإلغاء.', 'Click an empty slot to deploy the card, or click the card again to cancel.'],
+        ['تم إنزال ', 'Deployed '],
+        [' وخصم ', ' and spent '],
+        [' من الذهب.', ' gold.'],
+        ['انتهت تأثيرات المنع، الكروت يمكنها الهجوم من جديد.', 'Block effects ended; cards can attack again.'],
+        ['سوق البنك متاح ابتداءً من المرحلة الثالثة.', 'The Bank Market is available from Round 3.'],
+        ['لا توجد حركات متاحة لك حالياً. يمكنك إنهاء الدور وانتظار الجولة التالية.', 'No moves are currently available. You can end your turn and wait for the next round.'],
+        ['لا توجد كروت للخصم في الساحة.', 'There are no opponent cards on the battlefield.'],
+        ['هذا الكرت ممنوع بالفعل.', 'This card is already blocked.'],
+        ['درع النور يحمي قائد الفريق من الضرر!', 'The Light Shield protects the team leader from damage!'],
+        ['مات درع النور، انتهت الحماية عن القائد.', 'The Light Shield was destroyed; the leader is no longer protected.'],
+        ['لا يمكن الهجوم: قوة الكرت المهاجم أقل من قوة الكرت المستهدف.', 'Cannot attack: the attacking card has less power than the target.'],
+        ['استبدل فريق الظلام 3 ذهب بـ 6 حياة لسيد الظلال.', 'The Dark Team exchanged 3 gold for 6 leader health.'],
+        ['استبدل فريق النور 3 ذهب بـ 6 حياة لمعالجة النور.', 'The Light Team exchanged 3 gold for 6 healer health.'],
+        ['ضحى سيد الظلال (فريق الظلام) بـ 2 من حياته وحصل على 5 قطع ذهب إضافية.', 'Lord of Shadows (Dark Team) sacrificed 2 health and gained 5 gold.'],
+        ['ضحى ملك الفجر (فريق النور) بـ 2 من حياته وحصل على 5 قطع ذهب إضافية.', 'King of Dawn (Light Team) sacrificed 2 health and gained 5 gold.'],
+        ['الحكم: بدأ دورك (المرحلة ', 'Judge: your turn began (Round '],
+        ['بدأ دورك (المرحلة ', 'Your turn began (Round '],
+        ['الجولة ', 'Round '],
+        ['المرحلة ', 'Round '],
+        ['الحكم: بدأ دورك', 'Judge: your turn began'],
+        ['الحكم: دخلت ', 'Judge: entered '],
+        ['، تم توزيع ', ', distributed '],
+        [' ذهب لكل لاعب.', ' gold to each player.'],
+        ['، ولا يوجد توزيع ذهب إضافي في هذه المرحلة.', '; no additional income in this round.'],
+        ['). تم توزيع ', '). Distributed '],
+        ['ليس لديك مال كافٍ لشراء ', 'You do not have enough gold to buy '],
+        [' تحتاج إلى ', '. You need '],
+        [' ذهب.', ' gold.'],
+        ['تم شراء ', 'Bought '],
+        [' من البنك مقابل ', ' from the Bank for '],
+        [' ذهب وأضيف إلى يدك.', ' gold and added it to your hand.'],
+        ['انتهى دورك، بانتظار الخصم.', 'Your turn ended; waiting for the opponent.'],
+        ['خسر فريقك لأنه أنهى دوره دون هجوم أو إنزال أو معالجة أو لعبة حظ.', 'Your team lost because it ended the turn without attacking, deploying, healing, or playing the lottery.'],
+        ['ملك الفجر', 'King of Dawn'],
+        ['سيد الظلال', 'Lord of Shadows'],
+        ['فريق النور', 'Light Team'],
+        ['فريق الظلام', 'Dark Team'],
+        ['بعث الارواح', 'Resurrect'],
+        ['جيش المرتزقة', 'Mercenary Army'],
+        ['ضريبة قسرية', 'Forced Tax'],
+        ['لعنة الافلاس', 'Bankruptcy Curse']
+    ];
+    replacements.forEach(([from, to]) => { text = text.split(from).join(to); });
+    return text;
+}
+
 function updateBattleNews(newMessage) {
+    newMessage = localizeBattleNews(newMessage);
     if (!battleNewsText.querySelector('.news-content')) battleNewsText.innerHTML = '';
     const entry = document.createElement('div');
     entry.className = 'news-content';
@@ -150,20 +267,20 @@ function updateBattleNews(newMessage) {
 
 const battleCards = {
     light: [
-        { image: 'assets/images/cards/Good/falcon.png', name: 'الصقر الجارح', cost: 2, health: 8, attack: 2, description: 'حماية التخفي: طالما هو حي في ساحتك، يمنع الخصم تماماً من استهداف كرت معالجة النور بالهجوم. الكرت يحمي معالجة النور من الهجمات المباشرة مما يجعلها أكثر أماناً لتقديم العلاج للحلفاء.' },
-        { image: 'assets/images/cards/Good/light-healer.png', name: 'معالجة النور', cost: 2, health: 12, attack: 0, description: 'المعالجة والترميم: لا تهاجم، بل تملك زراً خاصاً للمعالجة يعالج حليفاً أو القائد بـ +2 حياة مقابل خصم 2 من صحتها (بحد أقصى 4 علاجات في الجولة، وتتوقف إذا بلغت صحتها 2).' },
-        { image: 'assets/images/cards/Good/cunning-trader.png', name: 'التاجر الماكر', cost: 3, health: 6, attack: 5, description: 'توليد الذهب الدوري: يمنح فريقه +1 قطعة ذهب تلقائياً في نهاية كل جولة طالما هو متواجد في ساحة المعركة.' },
-        { image: 'assets/images/cards/Good/vault-guardian.png', name: 'حارس الخزنة', cost: 4, health: 11, attack: 7, description: 'مقاتل قوي يحمي الفريق بقوة هجومية عالية وصحة جيدة.' },
-        { image: 'assets/images/cards/Good/light-shield.png', name: 'درع النور', cost: 4, health: 13, attack: 3, description: 'يحمي ملك الفجر من الضرر. حياة الملك لا تنقص طالما الدرع في الساحة.' },
-        { image: 'assets/images/cards/Good/sword-of-justice.png', name: 'سيف العدالة', cost: 5, health: 9, attack: 8, description: 'حماية العدالة: لا يمكن هجومه إلا إذا كان المهاجم أقوى منه بقوة هجومية أعلى.' }
+        { id: 'falcon', image: 'assets/images/cards/Good/falcon.png', name: 'Fierce Falcon', cost: 2, health: 8, attack: 2 },
+        { id: 'light-healer', image: 'assets/images/cards/Good/light-healer.png', name: 'Light Healer', cost: 2, health: 12, attack: 0 },
+        { id: 'cunning-trader', image: 'assets/images/cards/Good/cunning-trader.png', name: 'Cunning Trader', cost: 3, health: 6, attack: 5 },
+        { id: 'vault-guardian', image: 'assets/images/cards/Good/vault-guardian.png', name: 'Vault Guardian', cost: 4, health: 11, attack: 7 },
+        { id: 'light-shield', image: 'assets/images/cards/Good/light-shield.png', name: 'Light Shield', cost: 4, health: 13, attack: 3 },
+        { id: 'sword-of-justice', image: 'assets/images/cards/Good/sword-of-justice.png', name: 'Sword of Justice', cost: 5, health: 9, attack: 8 }
     ],
     dark: [
-        { image: 'assets/images/cards/Evil/silent-neighbor.png', name: 'الجار الصامت', cost: 2, health: 8, attack: 3, description: 'الصمت والمنع: يملك زراً خاصاً `🔇 منع كرت` يمنع كرتاً معادياً من الهجوم في الدورة التالية. الكرت يتسلل إلى ساحة الخصم ويختار أقوى كرت لديه لمنعه من الهجوم.' },
-        { image: 'assets/images/cards/Evil/hell-dragon.png', name: 'تنين الجحيم', cost: 6, health: 15, attack: 8, description: 'وحش قوي جداً بقوة هجومية عالية وصحة عالية، يشكل تهديداً كبيراً في المعركة. يمتلك أعلى إحصائيات في اللعبة ويمكنه هزيمة معظم الكروت الأخرى.' },
-        { image: 'assets/images/cards/Evil/dark-ghoul.png', name: 'غول الظلام', cost: 4, health: 13, attack: 5, description: 'مقاتل ضخم يتحمل الضربات بقوة هجومية متوسطة وصحة عالية. كرت متين يمكنه الصمود أمام الهجمات المتعددة وإلحاق الضرر بقوة.' },
-        { image: 'assets/images/cards/Evil/dread-priest.png', name: 'كاهن الرعب', cost: 3, health: 9, attack: 4, description: 'مقاتل متوازن بقوة هجومية وصحة متوسطة. كرت اقتصادي يمكن استدعاؤه بسهولة ويوفر توازناً جيداً بين الهجوم والدفاع.' },
-        { image: 'assets/images/cards/Evil/valley-of-screams.png', name: 'وادي الصراخ', cost: 3, health: 7, attack: 4, description: 'مقاتل سريع بقوة هجومية متوسطة وصحة منخفضة. كرت اقتصادي يمكن استدعاؤه بسهولة في بداية المعركة لتوفير قوة هجومية سريعة.' },
-        { image: 'assets/images/cards/Evil/box-monster.png', name: 'وحش الصندوق', cost: 4, health: 11, attack: 5, description: 'مقاتل متوازن بقوة هجومية وصحة متوسطة. كرت جيد للدفاع والهجوم مع إحصائيات متوازنة تجعله خياراً مرناً في الاستراتيجيات المختلفة.' }
+        { id: 'silent-neighbor', image: 'assets/images/cards/Evil/silent-neighbor.png', name: 'Silent Neighbor', cost: 2, health: 8, attack: 3 },
+        { id: 'hell-dragon', image: 'assets/images/cards/Evil/hell-dragon.png', name: 'Hell Dragon', cost: 6, health: 15, attack: 8 },
+        { id: 'dark-ghoul', image: 'assets/images/cards/Evil/dark-ghoul.png', name: 'Dark Ghoul', cost: 4, health: 13, attack: 5 },
+        { id: 'dread-priest', image: 'assets/images/cards/Evil/dread-priest.png', name: 'Dread Priest', cost: 3, health: 9, attack: 4 },
+        { id: 'valley-of-screams', image: 'assets/images/cards/Evil/valley-of-screams.png', name: 'Valley of Screams', cost: 3, health: 7, attack: 4 },
+        { id: 'box-monster', image: 'assets/images/cards/Evil/box-monster.png', name: 'Box Monster', cost: 4, health: 11, attack: 5 }
     ]
 };
 const playerStats = {
@@ -203,41 +320,246 @@ function setTurnLockState() {
 
 function renderBattleHand(team) {
     clearHandSelection();
-    battleHand.setAttribute('aria-label', `كروت فريق ${team === 'dark' ? 'الظلام' : 'النور'}`);
-    battleHand.innerHTML = battleCards[team].map((card, cardIndex) => `
-        <article class="battle-card" draggable="true" data-card-index="${cardIndex}" tabindex="0" aria-label="${card.name}: التكلفة ${card.cost}، الحياة ${card.health}، القوة الهجومية ${card.attack}. ${card.description}">
-            <img src="${card.image}" alt="${card.name}">
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const t = translations[lang];
+    const teamCards = t.cards[team];
+    
+    battleHand.setAttribute('aria-label', `${lang === 'ar' ? 'كروت فريق' : 'Cards of'} ${team === 'dark' ? (lang === 'ar' ? 'الظلام' : 'Dark') : (lang === 'ar' ? 'النور' : 'Light')}`);
+    
+    battleHand.innerHTML = battleCards[team].map((card, cardIndex) => {
+        const cardInfo = teamCards[cardIndex];
+        return `
+        <article class="battle-card" draggable="true" data-card-index="${cardIndex}" tabindex="0" aria-label="${cardInfo.name}: ${lang === 'ar' ? 'التكلفة' : 'Cost'} ${card.cost}, ${lang === 'ar' ? 'الحياة' : 'Health'} ${card.health}, ${lang === 'ar' ? 'القوة الهجومية' : 'Attack Power'} ${card.attack}. ${cardInfo.description}">
+            <img src="${card.image}" alt="${cardInfo.name}">
             <span class="card-cost">${card.cost}</span>
-            <h2>${card.name}</h2>
+            <h2>${cardInfo.name}</h2>
             <div class="card-values"><span>❤ <strong>${card.health}</strong></span><span>⚔ <strong>${card.attack}</strong></span></div>
-            <button class="card-info-button" type="button" data-card-name="${card.name}" data-card-cost="${card.cost}" data-card-health="${card.health}" data-card-attack="${card.attack}" data-card-description="${card.description}" data-card-image="${card.image}">?</button>
+            <button class="card-info-button" type="button" data-card-name="${card.id}" data-card-cost="${card.cost}" data-card-health="${card.health}" data-card-attack="${card.attack}" data-card-description="${cardInfo.description}" data-card-image="${card.image}">?</button>
             <div class="card-tooltip" role="tooltip">
-                <strong>${card.name}</strong>
-                <span>التكلفة: ${card.cost}</span>
-                <span>الحياة: ${card.health}</span>
-                <span>القوة الهجومية: ${card.attack}</span>
-                <p>${card.description}</p>
+                <strong>${cardInfo.name}</strong>
+                <span>${lang === 'ar' ? 'التكلفة' : 'Cost'}: ${card.cost}</span>
+                <span>${lang === 'ar' ? 'الحياة' : 'Health'}: ${card.health}</span>
+                <span>${lang === 'ar' ? 'القوة الهجومية' : 'Attack Power'}: ${card.attack}</span>
+                <p>${cardInfo.description}</p>
             </div>
         </article>
-    `).join('');
+    `}).join('');
     setTurnLockState();
 }
 
+function renderHandModal(team) {
+    if (!handModalContent) return;
+    
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const t = translations[lang];
+    const teamCards = t.cards[team];
+    
+    handModalContent.innerHTML = battleCards[team].map((card, cardIndex) => {
+        const cardInfo = teamCards[cardIndex];
+        return `
+        <article class="battle-card" draggable="true" data-card-index="${cardIndex}" tabindex="0" aria-label="${cardInfo.name}: ${lang === 'ar' ? 'التكلفة' : 'Cost'} ${card.cost}, ${lang === 'ar' ? 'الحياة' : 'Health'} ${card.health}, ${lang === 'ar' ? 'القوة الهجومية' : 'Attack Power'} ${card.attack}. ${cardInfo.description}">
+            <img src="${card.image}" alt="${cardInfo.name}">
+            <span class="card-cost">${card.cost}</span>
+            <h2>${cardInfo.name}</h2>
+            <div class="card-values"><span>❤ <strong>${card.health}</strong></span><span>⚔ <strong>${card.attack}</strong></span></div>
+            <button class="card-info-button" type="button" data-card-name="${card.id}" data-card-cost="${card.cost}" data-card-health="${card.health}" data-card-attack="${card.attack}" data-card-description="${cardInfo.description}" data-card-image="${card.image}">?</button>
+        </article>
+    `}).join('');
+    
+    // إضافة event listeners للكروت في نافذة اليد
+    const modalCards = handModalContent.querySelectorAll('.battle-card');
+    modalCards.forEach((card) => {
+        card.addEventListener('click', (event) => {
+            const cardIndex = card.dataset.cardIndex;
+            const battleCard = battleHand.querySelector(`.battle-card[data-card-index="${cardIndex}"]`);
+            if (battleCard) {
+                battleCard.click();
+                hideHandModal();
+            }
+        });
+        
+        card.addEventListener('dragstart', (event) => {
+            const cardIndex = card.dataset.cardIndex;
+            const battleCard = battleHand.querySelector(`.battle-card[data-card-index="${cardIndex}"]`);
+            if (battleCard) {
+                battleCard.dispatchEvent(new Event('dragstart'));
+            }
+        });
+    });
+}
+
+function showHandModal() {
+    const team = battleScreen.dataset.selectedTeam || 'light';
+    renderHandModal(team);
+    handModal.classList.remove('screen-hidden');
+    handModal.setAttribute('aria-hidden', 'false');
+    handToggle.setAttribute('aria-expanded', 'true');
+}
+
+function hideHandModal() {
+    handModal.classList.add('screen-hidden');
+    handModal.setAttribute('aria-hidden', 'true');
+    handToggle.setAttribute('aria-expanded', 'false');
+}
+
+function refreshDeployedCards() {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const team = battleScreen.dataset.selectedTeam || 'light';
+    
+    // Refresh player deployed cards
+    playerDropSlots.forEach((slot) => {
+        if (slot.classList.contains('occupied-slot')) {
+            const cardId = slot.dataset.cardName;
+            const cardHealth = slot.dataset.health;
+            const cardAttack = slot.dataset.attack;
+            const cardImage = slot.querySelector('.deployed-card-image').src;
+            const isHealer = cardId === 'light-healer';
+            const isSilentNeighbor = cardId === 'silent-neighbor';
+            
+            const canAttack = slot.querySelector('.card-attack-button') && !slot.querySelector('.card-attack-button').disabled;
+            
+            // Get the card data
+            const card = battleCards[team].find(c => c.id === cardId);
+            if (!card) return;
+            
+            // Get translated card info
+            const t = translations[lang];
+            const teamCards = t.cards[team];
+            const cardIndex = teamCards.findIndex(c => {
+                const targetId = c.name.toLowerCase().replace(/\s+/g, '-');
+                return cardId === targetId || 
+                       cardId === 'falcon' && c.name === 'Fierce Falcon' ||
+                       cardId === 'light-healer' && c.name === 'Light Healer' ||
+                       cardId === 'cunning-trader' && c.name === 'Cunning Trader' ||
+                       cardId === 'vault-guardian' && c.name === 'Vault Guardian' ||
+                       cardId === 'light-shield' && c.name === 'Light Shield' ||
+                       cardId === 'sword-of-justice' && c.name === 'Sword of Justice' ||
+                       cardId === 'silent-neighbor' && c.name === 'Silent Neighbor' ||
+                       cardId === 'hell-dragon' && c.name === 'Hell Dragon' ||
+                       cardId === 'dark-ghoul' && c.name === 'Dark Ghoul' ||
+                       cardId === 'dread-priest' && c.name === 'Dread Priest' ||
+                       cardId === 'valley-of-screams' && c.name === 'Valley of Screams' ||
+                       cardId === 'box-monster' && c.name === 'Box Monster';
+            });
+            
+            const cardInfo = cardIndex !== -1 ? teamCards[cardIndex] : null;
+            const translatedName = cardInfo ? cardInfo.name : card.name;
+            const translatedDescription = cardInfo ? cardInfo.description : '';
+            
+            slot.innerHTML = `
+                <img class="deployed-card-image" src="${cardImage}" alt="${translatedName}">
+                <span class="deployed-card-name">${translatedName}</span>
+                <div class="deployed-card-stats">
+                    <span class="deployed-card-health">❤ <strong>${cardHealth}</strong></span>
+                    <span class="deployed-card-attack">⚔ <strong>${cardAttack}</strong></span>
+                </div>
+                <button class="card-info-button" type="button" data-card-name="${translatedName}" data-card-cost="${card.cost}" data-card-health="${cardHealth}" data-card-attack="${cardAttack}" data-card-description="${translatedDescription}" data-card-image="${cardImage}">?</button>
+                ${canAttack ? `
+                    <button class="card-attack-button ${isHealer ? 'card-heal-button' : ''}" type="button" data-card-name="${translatedName}" data-action="${isHealer ? 'heal' : 'attack'}" ${battlePhase === 1 ? 'disabled' : ''}>${isHealer ? '✚' : '⚔'} <span>${isHealer ? (lang === 'ar' ? 'معالجة' : 'Heal') : (lang === 'ar' ? 'هجوم' : 'Attack')}</span></button>
+                    ${isSilentNeighbor ? `<button class="card-silence-button" type="button" data-card-name="${translatedName}" data-action="silence" ${battlePhase === 1 ? 'disabled' : ''}>🔇 <span>${lang === 'ar' ? 'منع كرت' : 'Block Card'}</span></button>` : ''}
+                ` : ''}
+            `;
+        }
+    });
+    
+    // Refresh computer deployed cards
+    computerDropSlots.forEach((slot) => {
+        if (slot.classList.contains('occupied-slot')) {
+            const cardId = slot.dataset.cardName;
+            const cardHealth = slot.dataset.health;
+            const cardAttack = slot.dataset.attack;
+            const cardImage = slot.querySelector('.deployed-card-image').src;
+            
+            // Get the card data for opponent team
+            const opponentTeam = team === 'light' ? 'dark' : 'light';
+            const card = battleCards[opponentTeam].find(c => c.id === cardId);
+            if (!card) return;
+            
+            // Get translated card info
+            const t = translations[lang];
+            const teamCards = t.cards[opponentTeam];
+            const cardIndex = teamCards.findIndex(c => {
+                const targetId = c.name.toLowerCase().replace(/\s+/g, '-');
+                return cardId === targetId || 
+                       cardId === 'falcon' && c.name === 'Fierce Falcon' ||
+                       cardId === 'light-healer' && c.name === 'Light Healer' ||
+                       cardId === 'cunning-trader' && c.name === 'Cunning Trader' ||
+                       cardId === 'vault-guardian' && c.name === 'Vault Guardian' ||
+                       cardId === 'light-shield' && c.name === 'Light Shield' ||
+                       cardId === 'sword-of-justice' && c.name === 'Sword of Justice' ||
+                       cardId === 'silent-neighbor' && c.name === 'Silent Neighbor' ||
+                       cardId === 'hell-dragon' && c.name === 'Hell Dragon' ||
+                       cardId === 'dark-ghoul' && c.name === 'Dark Ghoul' ||
+                       cardId === 'dread-priest' && c.name === 'Dread Priest' ||
+                       cardId === 'valley-of-screams' && c.name === 'Valley of Screams' ||
+                       cardId === 'box-monster' && c.name === 'Box Monster';
+            });
+            
+            const cardInfo = cardIndex !== -1 ? teamCards[cardIndex] : null;
+            const translatedName = cardInfo ? cardInfo.name : card.name;
+            
+            slot.innerHTML = `
+                <img class="deployed-card-image" src="${cardImage}" alt="${translatedName}">
+                <span class="deployed-card-name">${translatedName}</span>
+                <div class="deployed-card-stats">
+                    <span class="deployed-card-health">❤ <strong>${cardHealth}</strong></span>
+                    <span class="deployed-card-attack">⚔ <strong>${cardAttack}</strong></span>
+                </div>
+                <button class="card-info-button" type="button" data-card-name="${translatedName}" data-card-cost="${card.cost}" data-card-health="${cardHealth}" data-card-attack="${cardAttack}" data-card-description="${cardInfo ? cardInfo.description : ''}" data-card-image="${cardImage}">?</button>
+            `;
+        }
+    });
+}
+
 function deployedCardMarkup(card, canAttack = true, isPlayerCard = true) {
-    const isHealer = card.name === 'معالجة النور';
-    const isSilentNeighbor = card.name === 'الجار الصامت';
+    const lang = document.documentElement.getAttribute('lang') || 'en';
+    const t = translations[lang];
+    
+    // Find the card in translations by id
+    let cardInfo = null;
+    const team = battleScreen.dataset.selectedTeam || 'light';
+    const teamCards = t.cards[team];
+    
+    // Find card by id
+    const cardIndex = teamCards.findIndex(c => {
+        const cardId = card.id || card.name?.toLowerCase().replace(/\s+/g, '-');
+        const targetId = c.name.toLowerCase().replace(/\s+/g, '-');
+        return cardId === targetId || 
+               card.id === 'falcon' && c.name === 'Fierce Falcon' ||
+               card.id === 'light-healer' && c.name === 'Light Healer' ||
+               card.id === 'cunning-trader' && c.name === 'Cunning Trader' ||
+               card.id === 'vault-guardian' && c.name === 'Vault Guardian' ||
+               card.id === 'light-shield' && c.name === 'Light Shield' ||
+               card.id === 'sword-of-justice' && c.name === 'Sword of Justice' ||
+               card.id === 'silent-neighbor' && c.name === 'Silent Neighbor' ||
+               card.id === 'hell-dragon' && c.name === 'Hell Dragon' ||
+               card.id === 'dark-ghoul' && c.name === 'Dark Ghoul' ||
+               card.id === 'dread-priest' && c.name === 'Dread Priest' ||
+               card.id === 'valley-of-screams' && c.name === 'Valley of Screams' ||
+               card.id === 'box-monster' && c.name === 'Box Monster';
+    });
+    
+    if (cardIndex !== -1) {
+        cardInfo = teamCards[cardIndex];
+    }
+    
+    const cardName = cardInfo ? cardInfo.name : card.name;
+    const cardDescription = cardInfo ? cardInfo.description : card.description;
+    
+    const isHealer = card.id === 'light-healer';
+    const isSilentNeighbor = card.id === 'silent-neighbor';
     
     return `
-        <img class="deployed-card-image" src="${card.image}" alt="${card.name}">
-        <span class="deployed-card-name">${card.name}</span>
+        <img class="deployed-card-image" src="${card.image}" alt="${cardName}">
+        <span class="deployed-card-name">${cardName}</span>
         <div class="deployed-card-stats">
             <span class="deployed-card-health">❤ <strong>${card.health}</strong></span>
             <span class="deployed-card-attack">⚔ <strong>${card.attack}</strong></span>
         </div>
-        <button class="card-info-button" type="button" data-card-name="${card.name}" data-card-cost="${card.cost}" data-card-health="${card.health}" data-card-attack="${card.attack}" data-card-description="${card.description}" data-card-image="${card.image}">?</button>
+        <button class="card-info-button" type="button" data-card-name="${cardName}" data-card-cost="${card.cost}" data-card-health="${card.health}" data-card-attack="${card.attack}" data-card-description="${cardDescription}" data-card-image="${card.image}">?</button>
         ${canAttack && isPlayerCard ? `
-            <button class="card-attack-button ${isHealer ? 'card-heal-button' : ''}" type="button" data-card-name="${card.name}" data-action="${isHealer ? 'heal' : 'attack'}" ${battlePhase === 1 ? 'disabled' : ''}>${isHealer ? '✚' : '⚔'} <span>${isHealer ? 'معالجة' : 'هجوم'}</span></button>
-            ${isSilentNeighbor ? `<button class="card-silence-button" type="button" data-card-name="${card.name}" data-action="silence" ${battlePhase === 1 ? 'disabled' : ''}>🔇 <span>منع كرت</span></button>` : ''}
+            <button class="card-attack-button ${isHealer ? 'card-heal-button' : ''}" type="button" data-card-name="${cardName}" data-action="${isHealer ? 'heal' : 'attack'}" ${battlePhase === 1 ? 'disabled' : ''}>${isHealer ? '✚' : '⚔'} <span>${isHealer ? (lang === 'ar' ? 'معالجة' : 'Heal') : (lang === 'ar' ? 'هجوم' : 'Attack')}</span></button>
+            ${isSilentNeighbor ? `<button class="card-silence-button" type="button" data-card-name="${cardName}" data-action="silence" ${battlePhase === 1 ? 'disabled' : ''}>🔇 <span>${lang === 'ar' ? 'منع كرت' : 'Block Card'}</span></button>` : ''}
         ` : ''}
     `;
 }
@@ -262,7 +584,7 @@ function updateAttackButtons() {
 function resetAttackAvailability() {
     [...playerDropSlots, ...computerDropSlots].forEach((slot) => {
         delete slot.dataset.attackUsed;
-        if (slot.dataset.cardName === 'معالجة النور') slot.dataset.healUses = '0';
+        if (slot.dataset.cardName === 'light-healer') slot.dataset.healUses = '0';
     });
 }
 
@@ -299,7 +621,7 @@ function updateGoldToHealthButton(isBankAvailable = battlePhase >= 3) {
     const team = battleScreen.dataset.selectedTeam;
     if (!team) return;
     const stats = playerStats[team === 'dark' ? 'darkTeam' : 'lightTeam'];
-    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'معالجة النور');
+    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'light-healer');
     const hasTarget = team === 'dark'
         ? stats.health < 20
         : Boolean(healerSlot) && Number(healerSlot.dataset.health) < 12;
@@ -372,9 +694,8 @@ function updateTurnIndicator() {
     const activeTeam = isPlayerTurn ? playerTeam : opponentTeam;
     lightPlayerBanner.classList.toggle('active-player', activeTeam === 'light');
     darkPlayerBanner.classList.toggle('active-player', activeTeam === 'dark');
-    document.querySelector('.turn-indicator').textContent = isPlayerTurn
-        ? `المرحلة ${battlePhase} - دورك`
-        : `المرحلة ${battlePhase} - دور الخصم`;
+    const key = isPlayerTurn ? 'phaseYourTurn' : 'phaseOpponentTurn';
+    document.querySelector('.turn-indicator').textContent = battleText(key, `Round ${battlePhase} - ${isPlayerTurn ? 'Your Turn' : "Opponent's Turn"}`).replace('{phase}', battlePhase);
 }
 
 // الخادم يخبر الطرفين بصاحب الدور. تقدّم الجولة والذهب لا يحدثان هنا،
@@ -398,7 +719,7 @@ function resolveCardDefinition(name, preferredTeam) {
         ? [preferredTeam, preferredTeam === 'dark' ? 'light' : 'dark']
         : ['light', 'dark'];
     for (const team of teams) {
-        const found = battleCards[team].find((card) => card.name === name);
+        const found = battleCards[team].find((card) => card.id === name || card.name === name);
         if (found) return found;
     }
     const bankElement = [...battleShop.querySelectorAll('.bank-card[data-card-health]')]
@@ -427,15 +748,16 @@ function clearSlotState(slot) {
     slot.innerHTML = '';
 }
 
-function createGraveyardElement(cardName, imageSrc) {
+function createGraveyardElement(cardName, imageSrc, team) {
+    const translatedName = getTranslatedCardName(cardName, team);
     const element = document.createElement('div');
     element.className = 'graveyard-card';
-    element.title = cardName;
+    element.title = translatedName;
     const image = document.createElement('img');
     image.src = imageSrc;
-    image.alt = cardName;
+    image.alt = translatedName;
     const label = document.createElement('span');
-    label.textContent = cardName;
+    label.textContent = translatedName;
     element.append(image, label);
     return element;
 }
@@ -530,7 +852,7 @@ function exchangeGoldForHealth() {
     const team = battleScreen.dataset.selectedTeam;
     const statsKey = team === 'dark' ? 'darkTeam' : 'lightTeam';
     const stats = playerStats[statsKey];
-    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'معالجة النور');
+    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'light-healer');
     const hasTarget = team === 'dark'
         ? stats.health < 20
         : Boolean(healerSlot) && Number(healerSlot.dataset.health) < 12;
@@ -647,6 +969,7 @@ function resetBattleResources(initialPlayerTurn = true) {
     dropDiscount.dark.clear();
     isPlayerTurn = initialPlayerTurn;
     deployedCardCount = 0;
+    cardsDeployedThisTurn = 0;
     endTurnButton.hidden = !isPlayerTurn;
     turnActions.player = false;
     turnActions.computer = false;
@@ -661,7 +984,7 @@ function resetBattleResources(initialPlayerTurn = true) {
 
     updateBankControls();
     renderPlayerStats();
-    battleNewsText.innerHTML = '<div class="news-content">اختر كرتًا أو نفّذ أمرًا لبدء دورك.</div>';
+    battleNewsText.innerHTML = `<div class="news-content">${battleText('defaultMessage', 'Select a card or execute a command to start your turn.')}</div>`;
     resetAttackAvailability();
     updateAttackButtons();
 }
@@ -695,7 +1018,7 @@ function handleSlotDragLeave(event) {
 }
 
 function loseIfNoAffordableCard(team, stats, deployedNames) {
-    const hasAffordableCard = battleCards[team].some((card) => !deployedNames.has(card.name) && getDropCost(team, card) <= stats.gold);
+    const hasAffordableCard = battleCards[team].some((card) => !deployedNames.has(card.id) && getDropCost(team, card) <= stats.gold);
     const arenaIsEmpty = [...playerDropSlots].every((slot) => !slot.classList.contains('occupied-slot'));
     if (arenaIsEmpty && !hasAffordableCard) {
         if (stats.health > 2 && !healthToGoldUsed[team]) {
@@ -722,8 +1045,13 @@ function deployCardToSlot(cardIndex, slot) {
     const stats = playerStats[team === 'dark' ? 'darkTeam' : 'lightTeam'];
     const deployedNames = deployedCardNames[team];
 
-    if (!card || deployedNames.has(card.name)) {
+    if (!card || deployedNames.has(card.id)) {
         updateBattleNews('لا يمكن تكرار كرت موجود في ساحة المعركة.');
+        return false;
+    }
+
+    if (cardsDeployedThisTurn >= 2) {
+        updateBattleNews('لا يسمح بانزال 3 كروت في نفس الدور. انتظر إلى الجولة القادمة.');
         return false;
     }
 
@@ -737,15 +1065,16 @@ function deployCardToSlot(cardIndex, slot) {
     }
 
     stats.gold -= dropCost;
-    dropDiscount[team].delete(card.name);
+    dropDiscount[team].delete(card.id);
     turnActions.player = true;
-    deployedNames.add(card.name);
+    deployedNames.add(card.id);
     deployedCardCount += 1;
+    cardsDeployedThisTurn += 1;
     slot.classList.add('occupied-slot');
-    slot.dataset.cardName = card.name;
+    slot.dataset.cardName = card.id;
     slot.dataset.health = card.health;
     slot.dataset.attack = card.attack;
-    if (card.name === 'معالجة النور') slot.dataset.healUses = '0';
+    if (card.id === 'light-healer') slot.dataset.healUses = '0';
     slot.innerHTML = deployedCardMarkup(card, true, true);
     battleHand.querySelector(`[data-card-index="${cardIndex}"]`)?.remove();
     renderPlayerStats();
@@ -753,7 +1082,8 @@ function deployCardToSlot(cardIndex, slot) {
     endTurnButton.hidden = false;
     updateAttackButtons();
     notifyStateChange();
-    updateBattleNews(`تم إنزال ${card.name} وخصم ${dropCost} من الذهب.`);
+    const translatedName = getTranslatedCardName(card.id, team);
+    updateBattleNews(`تم إنزال ${translatedName} وخصم ${dropCost} من الذهب.`);
     return true;
 }
 
@@ -834,15 +1164,15 @@ function forceWithdrawalIfNoPlayerEvent() {
     const playerTeam = battleScreen.dataset.selectedTeam;
     const stats = playerStats[playerTeam === 'dark' ? 'darkTeam' : 'lightTeam'];
     const availableSlot = [...playerDropSlots].some((slot) => !slot.classList.contains('occupied-slot'));
-    const canDeploy = availableSlot && battleCards[playerTeam].some((card) => getDropCost(playerTeam, card) <= stats.gold && !deployedCardNames[playerTeam].has(card.name));
+    const canDeploy = availableSlot && battleCards[playerTeam].some((card) => getDropCost(playerTeam, card) <= stats.gold && !deployedCardNames[playerTeam].has(card.id));
     const opponentCards = [...computerDropSlots].filter((slot) => slot.classList.contains('occupied-slot'));
     const canAttack = [...playerDropSlots].some((attackerSlot) => attackerSlot.classList.contains('occupied-slot')
         && attackerSlot.dataset.attackUsed !== 'true'
         && opponentCards.some((targetSlot) => Number(attackerSlot.dataset.attack) >= Number(targetSlot.dataset.attack)));
-    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'معالجة النور');
+    const healerSlot = [...playerDropSlots].find((slot) => slot.dataset.cardName === 'light-healer');
     const injuredAlly = [...playerDropSlots].some((slot) => {
         if (!slot.classList.contains('occupied-slot') || slot === healerSlot) return false;
-        const maxHealth = battleCards[playerTeam].find((card) => card.name === slot.dataset.cardName)?.health || Number(slot.dataset.health);
+        const maxHealth = battleCards[playerTeam].find((card) => card.id === slot.dataset.cardName)?.health || Number(slot.dataset.health);
         return Number(slot.dataset.health) < maxHealth;
     });
     const canHeal = Boolean(healerSlot)
@@ -879,9 +1209,10 @@ function endPlayerTurn() {
 }
 
 function renderLeaderInSlot(slot, team) {
+    const lang = document.documentElement.getAttribute('lang') || 'en';
     const leader = team === 'dark'
-        ? { image: 'assets/images/characters/lord-shadow.png', name: 'سيد الظلال', health: playerStats.darkTeam.health }
-        : { image: 'assets/images/characters/king-dawn.png', name: 'ملك الفجر', health: playerStats.lightTeam.health };
+        ? { image: 'assets/images/characters/lord-shadow.png', name: lang === 'ar' ? 'سيد الظلال' : 'Lord of Shadows', health: playerStats.darkTeam.health }
+        : { image: 'assets/images/characters/king-dawn.png', name: lang === 'ar' ? 'ملك الفجر' : 'King of Dawn', health: playerStats.lightTeam.health };
 
     slot.innerHTML = `
         <img class="leader-card-image" src="${leader.image}" alt="${leader.name}">
@@ -903,16 +1234,16 @@ function showBattleScreen(team, startsWithPlayer = true) {
     battleScreen.classList.remove('screen-hidden');
     battleScreen.dataset.selectedTeam = team;
     resetBattleResources(startsWithPlayer);
-    document.querySelector('.turn-indicator').textContent = startsWithPlayer ? 'دورك' : 'انتظار دور الخصم';
+    document.querySelector('.turn-indicator').textContent = startsWithPlayer ? battleText('turn', 'Your Turn') : (document.documentElement.lang === 'ar' ? 'انتظار دور الخصم' : 'Waiting for opponent');
     lightPlayerBanner.classList.toggle('active-player', team === 'light' && startsWithPlayer);
     darkPlayerBanner.classList.toggle('active-player', team === 'dark' && startsWithPlayer);
     renderBattleHand(team);
     renderLeaders(team);
-    endTurnButton.textContent = 'إنهاء الدور';
+    endTurnButton.textContent = battleText('endTurn', 'End Turn');
     setTurnLockState();
-    const joinMessage = team === 'dark'
-        ? 'انضممت إلى فريق الظلام. اختر كرتًا من يدك وابدأ الهجوم.'
-        : 'انضممت إلى فريق النور. اختر كرتًا من يدك وابدأ الهجوم.';
+    const joinMessage = battleText(team === 'dark' ? 'joinDark' : 'joinLight', team === 'dark'
+        ? 'You joined the Dark Team. Deploy a card and begin the attack.'
+        : 'You joined the Light Team. Deploy a card and begin the attack.');
     battleNewsText.innerHTML = `<div class="news-content">${joinMessage}</div>`;
 }
 
@@ -958,14 +1289,14 @@ function showSilenceModal(silentNeighborSlot) {
             <button type="button" class="attack-target" data-target-name="${cardName}" data-target-slot-index="${slot.dataset.slotIndex}" ${isAlreadyBlocked ? 'disabled' : ''}>
                 <img src="${cardImage?.src || ''}" alt="${cardName}">
                 <span>${cardName}</span>
-                <small>القوة: ${slot.dataset.attack}${isAlreadyBlocked ? ' - ممنوع بالفعل' : ''}</small>
+                <small>${cardText('attack', 'Attack')}: ${slot.dataset.attack}${isAlreadyBlocked ? ' - ممنوع بالفعل' : ''}</small>
             </button>
         `;
     }).join('');
 
-    silenceModal.querySelector('#silence-title').textContent = 'اختر كرتًا لمنعه من الهجوم';
+    silenceModal.querySelector('#silence-title').textContent = battleText('silenceTitle', 'Choose a card to block');
     const hasValidTarget = silenceTargets.querySelector('.attack-target:not(:disabled)');
-    silenceEmptyMessage.textContent = 'لا توجد كروت يمكن منعها.';
+    silenceEmptyMessage.textContent = battleText('noSilenceTargets', 'There are no cards that can be blocked.');
     silenceEmptyMessage.hidden = Boolean(hasValidTarget);
     silenceModal.classList.remove('screen-hidden');
     silenceModal.setAttribute('aria-hidden', 'false');
@@ -983,7 +1314,9 @@ function showCardInfoModal(cardData) {
     console.log('Card data:', cardData);
     
     document.getElementById('card-info-image').src = cardData.image;
-    document.getElementById('card-info-title').textContent = cardData.name;
+    const team = battleScreen.dataset.selectedTeam;
+    const translatedName = team ? getTranslatedCardName(cardData.name, team) : cardData.name;
+    document.getElementById('card-info-title').textContent = translatedName;
     document.getElementById('card-info-health').textContent = cardData.health;
     document.getElementById('card-info-attack').textContent = cardData.attack;
     document.getElementById('card-info-cost').textContent = cardData.cost;
@@ -1025,7 +1358,9 @@ function executeSilence(targetSlotIndex) {
     targetSlot.classList.add('blocked-card');
 
     turnActions.player = true;
-    updateBattleNews(`الجار الصامت منع ${targetSlot.dataset.cardName} من الهجوم في دوره القادم.`);
+    const targetTeam = getSlotTeam(targetSlot);
+    const translatedName = getTranslatedCardName(targetSlot.dataset.cardName, targetTeam);
+    updateBattleNews(`الجار الصامت منع ${translatedName} من الهجوم في دوره القادم.`);
     hideSilenceModal();
     notifyStateChange();
 }
@@ -1033,9 +1368,9 @@ function executeSilence(targetSlotIndex) {
 function moveCardToGraveyard(slot) {
     const cardImage = slot.querySelector('.deployed-card-image');
     const cardName = slot.dataset.cardName || 'كرت';
-    const graveyardElement = createGraveyardElement(cardName, cardImage?.getAttribute('src') || '');
-    battleGraveyardSlots.appendChild(graveyardElement);
     const team = getSlotTeam(slot);
+    const graveyardElement = createGraveyardElement(cardName, cardImage?.getAttribute('src') || '', team);
+    battleGraveyardSlots.appendChild(graveyardElement);
     const card = resolveCardDefinition(cardName, team);
     if (card) graveyardCards.push({ ...card, team, element: graveyardElement });
     renderGraveyardBankCards();
@@ -1075,24 +1410,34 @@ function addCardToHand(card) {
     battleHand.appendChild(cardElement);
 }
 
+function updateVictoryModalText() {
+    if (!matchResult) return;
+    const playerTeam = battleScreen.dataset.selectedTeam;
+    const winningTeam = matchResult.winner;
+    const victoryType = matchResult.type;
+    const playerWon = winningTeam === playerTeam;
+    const winnerName = winningTeam === 'light' ? battleText('lightTeam', 'Light Team') : battleText('darkTeam', 'Dark Team');
+    const titleKey = playerWon
+        ? (victoryType === 'economic' ? 'victoryEconomicTitle' : 'victoryMilitaryTitle')
+        : (victoryType === 'economic' ? 'defeatEconomicTitle' : 'defeatMilitaryTitle');
+    const messageKey = playerWon
+        ? (victoryType === 'economic' ? 'victoryEconomicMessage' : 'victoryMilitaryMessage')
+        : (victoryType === 'economic' ? 'defeatEconomicMessage' : 'defeatMilitaryMessage');
+    const message = battleText(messageKey, '').replace('{gold}', ECONOMIC_VICTORY_GOLD).replace('{winner}', winnerName);
+    victoryTitle.textContent = battleText(titleKey, playerWon ? 'Congratulations!' : 'Better luck next time');
+    victoryMessage.textContent = message;
+    const leader = winningTeam === 'light'
+        ? { image: 'assets/images/characters/king-dawn.png', name: battleText('leaderLight', 'King of Dawn') }
+        : { image: 'assets/images/characters/lord-shadow.png', name: battleText('leaderDark', 'Lord of Shadows') };
+    victoryLeaderImage.src = leader.image;
+    victoryLeaderImage.alt = leader.name;
+    victoryResultIcon.textContent = playerWon ? (victoryType === 'economic' ? '💰' : '🏆') : '😔';
+}
+
 function showVictoryModal(winningTeam, victoryType = 'military') {
     if (matchResult) return; // النتيجة أُعلنت من قبل
     matchResult = { winner: winningTeam, type: victoryType };
-    const winnerName = winningTeam === 'light' ? 'فريق النور' : 'فريق الظلام';
-    const playerTeam = battleScreen.dataset.selectedTeam;
-    const leader = winningTeam === 'light'
-        ? { image: 'assets/images/characters/king-dawn.png', name: 'ملك الفجر' }
-        : { image: 'assets/images/characters/lord-shadow.png', name: 'سيد الظلال' };
-    victoryLeaderImage.src = leader.image;
-    victoryLeaderImage.alt = leader.name;
-    const playerWon = winningTeam === playerTeam;
-    victoryResultIcon.textContent = playerWon ? (victoryType === 'economic' ? '💰' : '🏆') : '😔';
-    victoryTitle.textContent = playerWon
-        ? (victoryType === 'economic' ? 'نصر اقتصادي!' : 'مبروك الانتصار!')
-        : (victoryType === 'economic' ? 'هزيمة اقتصادية' : 'حظ أوفر');
-    victoryMessage.textContent = playerWon
-        ? (victoryType === 'economic' ? `أحسنت! جمعت ${ECONOMIC_VICTORY_GOLD} قطعة ذهب وفاز ${winnerName} بالنصر الاقتصادي!` : `${winnerName} فاز بالمباراة!`)
-        : (victoryType === 'economic' ? `خسرت المباراة! جمع ${winnerName} عدد ${ECONOMIC_VICTORY_GOLD} قطعة ذهب وحقق النصر الاقتصادي.` : `لقد خسرت اللعبة وفاز ${winnerName}`);
+    updateVictoryModalText();
     
     // تأخير ظهور رسالة النتيجة
     window.clearTimeout(victoryTimer);
@@ -1190,8 +1535,8 @@ function executeAttack(targetSlotIndex) {
 }
 
 function resolveCombatAttack(attackerSlot, targetSlot, attackerTeam, attackerName) {
-    const attackerCardName = attackerSlot.dataset.cardName || attackerName;
-    const targetCardName = targetSlot.dataset.cardName || 'الكرت المستهدف';
+    const attackerCardId = attackerSlot.dataset.cardName || attackerName;
+    const targetCardId = targetSlot.dataset.cardName || 'الكرت المستهدف';
     const attackerAttack = Number(attackerSlot.dataset.attack);
     const targetAttack = Number(targetSlot.dataset.attack);
     if (attackerAttack < targetAttack) {
@@ -1215,6 +1560,8 @@ function resolveCombatAttack(attackerSlot, targetSlot, attackerTeam, attackerNam
     const targetTeam = attackerTeam === battleScreen.dataset.selectedTeam
         ? (battleScreen.dataset.selectedTeam === 'dark' ? 'light' : 'dark')
         : battleScreen.dataset.selectedTeam;
+    const attackerCardName = getTranslatedCardName(attackerCardId, attackerTeam);
+    const targetCardName = getTranslatedCardName(targetCardId, targetTeam);
     if (targetHealth <= 0) {
         defeatedNames.push(targetSlot.dataset.cardName);
         const attackingStatsKey = attackerTeam === 'dark' ? 'darkTeam' : 'lightTeam';
@@ -1315,7 +1662,8 @@ function executeHeal(targetSlotIndex, targetType = 'card') {
     }
     updateGoldToHealthButton();
     notifyStateChange();
-    updateBattleNews(`عالجت معالجة النور ${targetType === 'leader' ? 'ملك الفجر' : targetSlot.dataset.cardName} وأضافت ${restoredHealth} حياة، وخسرت نقطتين من حياتها.`);
+    const targetName = targetType === 'leader' ? 'ملك الفجر' : getTranslatedCardName(targetSlot.dataset.cardName, battleScreen.dataset.selectedTeam);
+    updateBattleNews(`عالجت معالجة النور ${targetName} وأضافت ${restoredHealth} حياة، وخسرت نقطتين من حياتها.`);
     hideAttackModal();
 }
 
@@ -1331,15 +1679,15 @@ function showAttackModal(attackerSlot) {
             <button type="button" class="attack-target" data-target-name="${cardName}" data-target-slot-index="${slot.dataset.slotIndex}" ${blockReason ? 'disabled' : ''}>
                 <img src="${cardImage?.src || ''}" alt="${cardName}">
                 <span>${cardName}</span>
-                <small>القوة: ${slot.dataset.attack}${blockReason ? ` - ${blockReason}` : ''}</small>
+                <small>${cardText('attack', 'Attack')}: ${slot.dataset.attack}${blockReason ? ` - ${blockReason}` : ''}</small>
             </button>
         `;
     }).join('');
-    attackModal.querySelector('#attack-title').textContent = 'اختر من تريد الهجوم عليه';
+    attackModal.querySelector('#attack-title').textContent = battleText('attackTitle', 'Choose a target to attack');
     const hasValidTarget = attackTargets.querySelector('.attack-target:not(:disabled)');
     attackEmptyMessage.textContent = opponentCards.length === 0
-        ? 'لا توجد كروت للخصم في الساحة.'
-        : 'لا توجد كروت يمكن مهاجمتها الآن.';
+        ? battleText('noOpponentCards', 'There are no opponent cards on the battlefield.')
+        : battleText('noAttackTargets', 'There are no cards that can be attacked now.');
     attackEmptyMessage.hidden = Boolean(hasValidTarget);
     attackModal.classList.remove('screen-hidden');
     attackModal.setAttribute('aria-hidden', 'false');
@@ -1385,10 +1733,26 @@ function showHealModal(healerSlot) {
 }
 
 function setBankOpen(isOpen) {
-    if (isOpen) { renderGraveyardBankCards(); setGraveyardOpen(false); }
+    setBankView(null);
+    if (isOpen) setGraveyardOpen(false);
     battleShop.classList.toggle('shop-open', isOpen);
     battleShop.setAttribute('aria-hidden', String(!isOpen));
     bankToggle.setAttribute('aria-expanded', String(isOpen));
+}
+
+function setBankView(view) {
+    const showBank = view === 'bank';
+    const showGraveyard = view === 'graveyard';
+    bankInventory.hidden = !showBank;
+    graveyardInventory.hidden = !showGraveyard;
+    bankShopChoice.setAttribute('aria-pressed', String(showBank));
+    graveyardShopChoice.setAttribute('aria-pressed', String(showGraveyard));
+    shopTitle.textContent = showBank
+        ? battleText('bankCards', 'Bank Cards')
+        : showGraveyard
+            ? battleText('graveyardCards', 'Graveyard Cards')
+            : battleText('shopTitle', 'Bank Market');
+    if (showGraveyard) renderGraveyardBankCards();
 }
 
 // لوحة المقبرة: مطوية افتراضياً على الجوال (تُفتح بالضغط على الأيقونة العائمة)، ودائماً ظاهرة على الشاشات الكبيرة
@@ -1470,8 +1834,9 @@ graveyardBankCards.addEventListener('click', (event) => {
     const playerTeam = battleScreen.dataset.selectedTeam;
     const stats = playerStats[playerTeam === 'dark' ? 'darkTeam' : 'lightTeam'];
     if (!card || !isPlayerTurn || isGameOver || battlePhase < 3) return;
+    const translatedName = getTranslatedCardName(card.id, playerTeam);
     if (!ensureGoldThroughLeaderSacrifice(playerTeam, card.cost, card.name)) {
-        updateBattleNews(`ليس لديك مال كافٍ لشراء ${card.name}. تحتاج إلى ${card.cost} ذهب.`);
+        updateBattleNews(`ليس لديك مال كافٍ لشراء ${translatedName}. تحتاج إلى ${card.cost} ذهب.`);
         return;
     }
     
@@ -1479,19 +1844,19 @@ graveyardBankCards.addEventListener('click', (event) => {
     stats.gold -= purchaseCost;
 
     // بعد الشراء من المقبرة يكلّف إنزال الكرت 1 ذهب فقط
-    dropDiscount[playerTeam].add(card.name);
+    dropDiscount[playerTeam].add(card.id);
     card.cost = DISCOUNTED_DROP_COST;   // ليظهر على كرت اليد
     
     // إضافة الكرت إلى اليد
     addCardToHand(card);
-    deployedCardNames[playerTeam].delete(card.name);
+    deployedCardNames[playerTeam].delete(card.id);
     card.element?.remove();
     graveyardCards.splice(cardIndex, 1);
     renderGraveyardBankCards();
     updateGraveyardBadge();
     renderPlayerStats();
     turnActions.player = true;
-    updateBattleNews(`تم شراء ${card.name} من المقبرة مقابل ${purchaseCost} ذهب، وإنزاله سيكلّف 1 ذهب فقط.`);
+    updateBattleNews(`تم شراء ${translatedName} من المقبرة مقابل ${purchaseCost} ذهب، وإنزاله سيكلّف 1 ذهب فقط.`);
     notifyStateChange();
 });
 battleHand.addEventListener('click', (event) => {
@@ -1542,6 +1907,8 @@ bankToggle.addEventListener('click', () => {
     setBankOpen(!battleShop.classList.contains('shop-open'));
 });
 shopCloseButton.addEventListener('click', () => setBankOpen(false));
+bankShopChoice.addEventListener('click', () => setBankView('bank'));
+graveyardShopChoice.addEventListener('click', () => setBankView('graveyard'));
 graveyardToggle.addEventListener('click', () => setGraveyardOpen(!battleGraveyard.classList.contains('graveyard-open')));
 goldToHealthButton.addEventListener('click', exchangeGoldForHealth);
 healthToGoldButton.addEventListener('click', () => {
@@ -1558,6 +1925,11 @@ declineSacrificeButton.addEventListener('click', () => {
     endPlayerTurn();
 });
 lotteryToggle.addEventListener('click', () => purchaseBankCard(lotteryToggle));
+handToggle.addEventListener('click', showHandModal);
+closeHandModal.addEventListener('click', hideHandModal);
+handModal.addEventListener('click', (event) => {
+    if (event.target === handModal) hideHandModal();
+});
 battleShop.addEventListener('mouseleave', () => setBankOpen(false));
 battleShop.addEventListener('click', (event) => {
     const bankCard = event.target.closest('.bank-card[data-bank-cost]');
@@ -1583,4 +1955,4 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !cardInfoModal.classList.contains('screen-hidden')) hideCardInfoModal();
     if (event.key === 'Escape' && !emergencySacrificeModal.classList.contains('screen-hidden')) hideEmergencySacrificeModal();
 });
-renderPlayerStats();
+renderPlayerStats();
