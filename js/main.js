@@ -15,6 +15,7 @@
     const backToWelcome = document.querySelector('#back-to-welcome');
     const headerSubtitle = document.querySelector('.header-subtitle');
     const pickDark = document.querySelector('#join-dark-team');
+    const factionChallenge = document.querySelector('#faction-challenge');
     const pickLight = document.querySelector('#join-light-team');
 
     let mode = null;   // null | 'online' | 'ai'
@@ -39,6 +40,10 @@
             if (mode === 'online') OnlineMode.exit();
             if (mode === 'ai') AIMode.exit();
             mode = null;
+            pickLight.hidden = true;
+            pickDark.hidden = true;
+            factionChallenge.setAttribute('aria-expanded', 'false');
+            selectionScreen.classList.remove('team-options-visible');
             show(selectionScreen, false);
             show(battleScreen, false);
             show(welcomeScreen, true);
@@ -52,9 +57,18 @@
             show(battleScreen, false);
             selectionScreen.classList.toggle('mode-online', mode === 'online');
             selectionScreen.classList.toggle('mode-ai', mode === 'ai');
-            headerSubtitle.textContent = mode === 'online'
-                ? `أهلاً ${App.playerName}! اختر لاعباً من القائمة وتحدَّه.`
-                : `أهلاً ${App.playerName}! اختر فريقك لتواجه العقل الإلكتروني.`;
+            pickLight.hidden = true;
+            pickDark.hidden = true;
+            factionChallenge.setAttribute('aria-expanded', 'false');
+            selectionScreen.classList.remove('team-options-visible');
+            
+            // Get translations based on current language
+            const lang = document.documentElement.getAttribute('lang') || 'en';
+            const t = translations[lang];
+            const greetingKey = mode === 'online' ? 'onlineGreeting' : 'aiGreeting';
+            const greeting = t.welcome[greetingKey].replace('{name}', App.playerName);
+            
+            headerSubtitle.textContent = greeting;
             show(selectionScreen, true);
         },
 
@@ -80,6 +94,15 @@
     challengeHumans.addEventListener('click', App.enterOnline);
     challengeComputer.addEventListener('click', App.enterComputer);
     backToWelcome.addEventListener('click', App.showWelcome);
+    factionChallenge.addEventListener('click', () => {
+        if (mode !== 'ai') return;
+        const shouldShow = pickLight.hidden;
+        pickLight.hidden = !shouldShow;
+        pickDark.hidden = !shouldShow;
+        factionChallenge.setAttribute('aria-expanded', String(shouldShow));
+        selectionScreen.classList.toggle('team-options-visible', shouldShow);
+        if (shouldShow) pickLight.focus();
+    });
     // أزرار اختيار الفريق تعمل في وضع الكمبيوتر فقط (في الأونلاين تُخفى ويُختار الفريق عند التحدي)
     pickLight.addEventListener('click', () => { if (mode === 'ai') AIMode.start('light'); });
     pickDark.addEventListener('click', () => { if (mode === 'ai') AIMode.start('dark'); });
