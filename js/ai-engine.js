@@ -14,7 +14,7 @@
         income: { 2: 4, 3: 3, 4: 2, 5: 1 },
         healCost: 2, healAmount: 2, maxHeals: 4,
         discountedDropCost: 1,          // إنزال كرت اشتُري من البنك أو المقبرة
-        maxRounds: 40
+        maxRounds: 40, maxDeployPerTurn: 2
     };
     const SPECIAL = { shield: 4, sword: 3, falcon: 2, healer: 3, silent: 3 };
 
@@ -30,7 +30,7 @@
 
     function cloneTeam(T) {
         return {
-            hp: T.hp, gold: T.gold,
+            hp: T.hp, gold: T.gold, deployedThisTurn: T.deployedThisTurn || 0,
             board: T.board.map((c) => c && { def: c.def, hp: c.hp, atk: c.atk, used: c.used, heals: c.heals, blocked: c.blocked }),
             cards: T.cards.slice(), deployed: new Set(T.deployed), grave: T.grave.slice(),
             gth: T.gth, htg: T.htg, drop: Object.assign({}, T.drop)
@@ -72,10 +72,12 @@
         deploy(t, def, slot, allowSac) {
             const T = this.T[t];
             if (this.over || T.board[slot] || T.deployed.has(def.name)) return false;
+            if ((T.deployedThisTurn || 0) >= this.R.maxDeployPerTurn) return false;
             const cost = this.dropCost(T, def);
             if (T.gold < cost && !(allowSac && this.sacrifice(t, cost))) return false;
             if (T.gold < cost) return false;
             T.gold -= cost; T.deployed.add(def.name); delete T.drop[def.name];
+            T.deployedThisTurn = (T.deployedThisTurn || 0) + 1;
             T.board[slot] = { def, hp: def.hp, atk: def.atk, used: false, heals: 0, blocked: false };
             this.acted = true; return true;
         }
@@ -168,6 +170,7 @@
         }
         beginTurn(t) {
             this.acted = false; this.silenced = 0;
+            this.T[t].deployedThisTurn = 0;
             this.T[t].board.forEach((c) => { if (c) { c.used = false; c.heals = 0; } });
         }
         endTurn(t) { this.T[t].board.forEach((c) => { if (c) c.blocked = false; }); }
@@ -181,7 +184,7 @@
         takeTurn(t, bot) {
             const T = this.T[t]; this.beginTurn(t);
             if (!this.anyAction(t)) {
-                if (T.hp > 2 && !T.htg) { T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(); }
+                if (this.round > 1 && T.hp > 2 && !T.htg) { T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(); }
                 else if (T.board.every((c) => !c) && T.hp <= 2) { this.setOver(opp(t), 'nomoves'); return; }
             }
             if (!this.over) bot.turn(this, t);
@@ -223,11 +226,11 @@
         candidates(g, t) {
             const T = g.T[t], O = g.T[opp(t)], out = []; const P = this.p; const cw = P.costW;
             const free = T.board.findIndex((c) => !c);
-            if (free >= 0) {
+            if (free >= 0 && (T.deployedThisTurn || 0) < g.R.maxDeployPerTurn) {
                 for (const def of g.hand(t)) {
                     const cost = g.dropCost(T, def); const base = valueOf(def, P) - cw * cost + 1;
                     if (T.gold >= cost) out.push({ s: base, act: { k: 'deploy', def, slot: free, sac: false } });
-                    else if (T.hp > 8 && !T.htg && T.gold + 5 >= cost) out.push({ s: base - 2.5, act: { k: 'deploy', def, slot: free, sac: true } });
+                    else if (g.round > 1 && T.hp > 8 && !T.htg && T.gold + 5 >= cost) out.push({ s: base - 2.5, act: { k: 'deploy', def, slot: free, sac: true } });
                 }
                 if (g.phase >= g.R.bankPhase) {
                     for (const b of g.bank) if (!T.cards.some((c) => c.name === b.name) && T.gold >= b.cost + g.R.discountedDropCost) {
