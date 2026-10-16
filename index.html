@@ -60,6 +60,16 @@
                 <span class="game-mark material-symbols-rounded" aria-hidden="true">swords</span>
                 <h1 data-i18n="title">Faction Wars</h1>
                 <p class="header-subtitle" data-i18n="selection.subtitle">Choose your destiny: Light Faction or Dark Faction?</p>
+                <div class="turn-duration-setting">
+                    <label for="turn-duration" data-i18n="selection.turnDuration">Turn duration</label>
+                    <select id="turn-duration">
+                        <option value="0" data-i18n="selection.turnDurationOpen">Unlimited</option>
+                        <option value="45" selected data-i18n="selection.turnDuration45">45 seconds</option>
+                        <option value="60" data-i18n="selection.turnDuration60">1 minute</option>
+                        <option value="90" data-i18n="selection.turnDuration90">1 minute 30 seconds</option>
+                        <option value="120" data-i18n="selection.turnDuration120">2 minutes</option>
+                    </select>
+                </div>
                 <div class="header-gem"></div>
                 <button type="button" class="guide-button" id="open-guide" data-i18n="selection.guideButton">Game Guide</button>
                 <button type="button" class="guide-button mode-back-button" id="back-to-welcome" data-i18n="selection.backButton">Back</button>
@@ -74,6 +84,7 @@
         <div class="online-lobby" id="online-lobby">
             <div class="online-lobby-header">
                 <h2 data-i18n="selection.onlineLobby">Available Players</h2>
+                <button type="button" class="online-refresh-button" id="online-refresh-button" data-i18n="selection.refreshPlayers">Refresh</button>
             </div>
             <div class="online-player-list" id="online-player-list">
                 <p data-i18n="selection.loadingPlayers">Loading players...</p>
@@ -223,7 +234,7 @@
                 <p data-i18n="guide.victoryDesc">The system announces the result automatically when one of these conditions is met:</p>
                 <ol>
                     <li data-i18n="guide.victory1"><strong>Military Victory:</strong> Opponent leader health reaches <strong>0</strong>.</li>
-                    <li data-i18n="guide.victory2"><strong>Economic Victory:</strong> Your gold reaches <strong>25</strong> pieces in your treasury.</li>
+                    <li data-i18n="guide.victory2"><strong>Economic Victory:</strong> Your gold reaches <strong>30</strong> pieces in your treasury.</li>
                 </ol>
 
                 <h3 data-i18n="guide.connection">Connection and Disconnection</h3>
@@ -294,7 +305,10 @@
                     <div class="player-stats"><span>❤ <strong id="light-health">20</strong></span><span>◉ <strong id="light-gold">5</strong></span></div>
                 </div>
             </section>
-            <div class="turn-indicator" data-i18n="battle.turn">Your Turn</div>
+            <div class="turn-indicator">
+                <span id="turn-indicator-label" data-i18n="battle.turn">Your Turn</span>
+                <span id="turn-timer" class="turn-timer" hidden aria-live="off"></span>
+            </div>
             <section class="player-banner dark-banner" id="dark-player-banner">
                 <div>
                     <h1 data-i18n="battle.darkTeam">Dark Team</h1>
@@ -330,12 +344,12 @@
             <span data-i18n="battle.bank">Bank Market</span>
         </button>
         <button type="button" class="bank-toggle lottery-toggle bank-card" id="lottery-toggle" data-bank-cost="2" data-bank-name="Game of Luck" data-bank-action="lottery">
-            <img src="assets/images/كروت البنك/لعبة الحظ.jpg" alt="Game of Luck">
+            <img src="assets/images/bank-cards/luck.svg" alt="Game of Luck">
             <span data-i18n="battle.luck">Game of Luck</span>
             <small>◉ 2</small>
         </button>
-        <button type="button" class="bank-toggle hand-toggle" id="hand-toggle" aria-expanded="false" aria-controls="hand-modal" aria-label="Hand Cards">
-            <span>🃏</span>
+        <button type="button" class="bank-toggle hand-toggle" id="hand-toggle" aria-expanded="false" aria-controls="hand-modal" aria-label="كروت اليد" title="كروت اليد" data-i18n-aria-label="battle.handCards" data-i18n-title="battle.handCards">
+            <span class="hand-toggle-label" data-i18n="battle.handCards">كروت اليد</span>
         </button>
 
         <aside class="battle-shop" id="battle-shop" aria-hidden="true">
@@ -349,10 +363,11 @@
             </div>
             <section class="shop-inventory" id="bank-inventory" hidden>
                 <div class="bank-cards" aria-label="Bank Cards" data-i18n-aria-label="battle.bankCards">
-                    <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="بعث الارواح" data-card-health="10" data-card-attack="3"><img src="assets/images/كروت البنك/بعث الارواح.jpg" alt="Resurrect"><span data-i18n="battle.bankResurrect">Resurrect</span><small>◉ 4</small></button>
-                    <button type="button" class="bank-card" data-bank-cost="5" data-bank-name="جيش المرتزقة" data-card-health="8" data-card-attack="9"><img src="assets/images/كروت البنك/جيش المرتزقة.jpg" alt="Mercenary Army"><span data-i18n="battle.bankMercenary">Mercenary Army</span><small>◉ 5</small></button>
-                    <button type="button" class="bank-card" data-bank-cost="3" data-bank-name="ضريبة قسرية" data-card-health="10" data-card-attack="4"><img src="assets/images/كروت البنك/ضريبة قسرية.jpg" alt="Forced Tax"><span data-i18n="battle.bankTax">Forced Tax</span><small>◉ 3</small></button>
-                    <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="لعنة الافلاس" data-card-health="7" data-card-attack="4"><img src="assets/images/كروت البنك/لعنة الافلاس.jpg" alt="Bankruptcy Curse"><span data-i18n="battle.bankruptcy">Bankruptcy Curse</span><small>◉ 4</small></button>
+                    <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="بعث الارواح" data-card-health="10" data-card-attack="3" title="While on the battlefield, prevents the opponent from deploying Silent Neighbor. If Silent Neighbor is already there, destroys it immediately without taking damage." data-i18n-title="battle.bankCardDescriptions.resurrect"><img src="assets/images/bank-cards/resurrect.jpg" alt="Resurrect" data-i18n-alt="battle.bankCards.resurrect"><span data-i18n="battle.bankResurrect">Resurrect</span><small>◉ 4</small></button>
+                    <button type="button" class="bank-card" data-bank-cost="5" data-bank-name="جيش المرتزقة" data-card-health="8" data-card-attack="10" title="A hired fighter with 8 health and 10 attack." data-i18n-title="battle.bankCardDescriptions.mercenary"><img src="assets/images/bank-cards/mercenary-army.jpg" alt="Mercenary Army" data-i18n-alt="battle.bankCards.mercenary"><span data-i18n="battle.bankMercenary">Mercenary Army</span><small>◉ 5</small></button>
+                    <button type="button" class="bank-card" data-bank-cost="3" data-bank-name="ضريبة قسرية" data-card-health="10" data-card-attack="4" title="At the end of each round, the opponent loses 1 gold while this card remains on the battlefield." data-i18n-title="battle.bankCardDescriptions.tax"><img src="assets/images/bank-cards/forced-tax.jpg" alt="Forced Tax" data-i18n-alt="battle.bankCards.tax"><span data-i18n="battle.bankTax">Forced Tax</span><small>◉ 3</small></button>
+                    <button type="button" class="bank-card" data-bank-cost="4" data-bank-name="لعنة الافلاس" data-card-health="7" data-card-attack="4" title="At the end of each round, the opponent loses 2 gold while this card remains on the battlefield." data-i18n-title="battle.bankCardDescriptions.bankruptcy"><img src="assets/images/bank-cards/bankruptcy-curse.jpg" alt="Bankruptcy Curse" data-i18n-alt="battle.bankCards.bankruptcy"><span data-i18n="battle.bankruptcy">Bankruptcy Curse</span><small>◉ 4</small></button>
+                    <button type="button" class="bank-card" data-bank-cost="7" data-bank-name="درع القائد" data-card-health="10" data-card-attack="6" title="Protects its leader from damage while this card remains on the battlefield." data-i18n-title="battle.bankCardDescriptions.commanderShield"><img src="assets/images/bank-cards/leader-shield.jpg" alt="Commander's Shield" data-i18n-alt="battle.bankCards.commanderShield"><span data-i18n="battle.bankCards.commanderShield">Commander's Shield</span><small>◉ 7</small></button>
                 </div>
                 <button type="button" class="gold-to-health-button" id="gold-to-health-button" disabled>
                     <span data-i18n="battle.goldToHealth">Exchange Gold for Health</span>
@@ -369,8 +384,13 @@
         </aside>
 
         <div class="battle-news" role="status" aria-live="polite">
-            <strong data-i18n="battle.gameEvents">Game Events</strong>
-            <div class="news-ticker" id="battle-news-text" data-i18n="battle.defaultMessage">Select a card or execute a command to start your turn.</div>
+            <div class="battle-news-header">
+                <strong>⚔️ <span data-i18n="battle.gameEvents">Game Events</span></strong>
+                <span class="battle-news-count" id="battle-news-count" aria-live="off"></span>
+            </div>
+            <ul class="news-ticker" id="battle-news-text" aria-label="Game events">
+                <li class="news-empty" data-i18n="battle.defaultMessage">Select a card or execute a command to start your turn.</li>
+            </ul>
         </div>
 
         <div class="insufficient-gold-modal screen-hidden" id="insufficient-gold-modal" role="alertdialog" aria-modal="true" aria-labelledby="insufficient-gold-title" aria-describedby="insufficient-gold-message">

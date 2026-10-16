@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -16,21 +17,191 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 5501;
 const WAITING_ROOM_TIMEOUT_MS = 2 * 60 * 1000;
 const RECONNECT_GRACE_MS = 30 * 1000;
+const TURN_TIME_LIMIT_MS = 45 * 1000;
+const ALLOWED_TURN_DURATIONS_MS = new Set([0, 45_000, 60_000, 90_000, 120_000]);
+const ROOM_STATE_FILE = process.env.GAME_STATE_FILE || path.join(__dirname, '.runtime', 'online-matches.json');
+const ROOM_STATE_VERSION = 1;
+const ROOM_STATE_HEARTBEAT_MS = 5 * 1000;
 const players = new Map();
 const rooms = new Map();
+
+function normalizeTurnDurationMs(value) {
+  const durationMs = Number(value);
+  if (ALLOWED_TURN_DURATIONS_MS.has(durationMs)) return durationMs;
+  const durationFromSecondsMs = durationMs * 1000;
+  return ALLOWED_TURN_DURATIONS_MS.has(durationFromSecondsMs)
+    ? durationFromSecondsMs
+    : TURN_TIME_LIMIT_MS;
+}
+
+function getTurnRemainingMs(room, now = Date.now()) {
+  if (room.turnDurationMs === 0) return null;
+  return Math.max(0, room.turnDeadline - now);
+}
+
+function persistRooms() {
+  const persistedAt = Date.now();
+  const activeRooms = Array.from(rooms.values())
+    .filter((room) => room.state === 'active' || room.state === 'paused')
+    .map((room) => ({
+      roomId: room.roomId,
+      state: room.state,
+      currentTurn: room.currentTurn,
+      firstTurn: room.firstTurn,
+      players: room.players.map((player) => ({
+        sessionId: player.sessionId,
+        name: player.name,
+        team: player.team
+      })),
+      challengerTeam: room.challengerTeam,
+      targetTeam: room.targetTeam,
+      turnDurationMs: room.turnDurationMs,
+      stateSnapshot: room.stateSnapshot,
+      turnStartPending: room.turnStartPending,
+      turnRemainingMs: room.state === 'paused'
+        ? room.pausedTurnRemainingMs
+        : getTurnRemainingMs(room, persistedAt),
+      reconnectDeadline: room.reconnectDeadline || null
+    }));
+  const state = JSON.stringify({ version: ROOM_STATE_VERSION, persistedAt, rooms: activeRooms });
+  const directory = path.dirname(ROOM_STATE_FILE);
+  const temporaryFile = `${ROOM_STATE_FILE}.${process.pid}.tmp`;
+
+  try {
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(temporaryFile, state, 'utf8');
+    fs.renameSync(temporaryFile, ROOM_STATE_FILE);
+  } catch (error) {
+    console.error('Unable to persist online matches:', error);
+    if (fs.existsSync(temporaryFile)) {
+      try {
+        fs.unlinkSync(temporaryFile);
+      } catch (cleanupError) {
+        console.error('Unable to remove temporary online match state:', cleanupError);
+      }
+    }
+  }
+}
+
+function restoreRooms() {
+  if (!fs.existsSync(ROOM_STATE_FILE)) return;
+
+  let persisted;
+  try {
+    persisted = JSON.parse(fs.readFileSync(ROOM_STATE_FILE, 'utf8'));
+  } catch (error) {
+    console.error('Unable to read persisted online matches; starting with an empty match list:', error);
+    return;
+  }
+  if (persisted?.version !== ROOM_STATE_VERSION || !Array.isArray(persisted.rooms)) {
+    console.error('Persisted online match state has an unsupported format; starting with an empty match list.');
+    return;
+  }
+
+  const now = Date.now();
+  const savedAt = Number(persisted.persistedAt);
+  if (!Number.isFinite(savedAt)) {
+    console.error('Persisted online match state has no valid timestamp; starting with an empty match list.');
+    return;
+  }
+
+  let restoredCount = 0;
+  let expiredCount = 0;
+  persisted.rooms.forEach((storedRoom) => {
+    if (!storedRoom || typeof storedRoom.roomId !== 'string' || !Array.isArray(storedRoom.players) || storedRoom.players.length !== 2) return;
+    const disconnectedAt = storedRoom.state === 'paused'
+      && storedRoom.reconnectDeadline != null
+      && Number.isFinite(Number(storedRoom.reconnectDeadline))
+      ? Number(storedRoom.reconnectDeadline)
+      : savedAt + RECONNECT_GRACE_MS;
+    if (disconnectedAt <= now) {
+      expiredCount += 1;
+      return;
+    }
+
+    const playersInRoom = storedRoom.players.map((player) => ({
+      socketId: null,
+      sessionId: String(player.sessionId || ''),
+      name: sanitizePlayerName(player.name),
+      team: player.team === 'dark' ? 'dark' : 'light',
+      disconnectedAt: savedAt
+    }));
+    if (playersInRoom.some((player) => !player.sessionId)) return;
+
+    const turnDurationMs = storedRoom.turnDurationMs === undefined
+      ? TURN_TIME_LIMIT_MS
+      : normalizeTurnDurationMs(storedRoom.turnDurationMs);
+    const persistedTurnRemaining = turnDurationMs === 0
+      ? null
+      : Math.max(0, Number(storedRoom.turnRemainingMs) || 0);
+    const downtime = Math.max(0, now - savedAt);
+    const remainingTurnMs = turnDurationMs === 0
+      ? null
+      : (storedRoom.state === 'paused'
+          ? persistedTurnRemaining
+          : Math.max(0, persistedTurnRemaining - downtime));
+    const room = {
+      roomId: storedRoom.roomId,
+      state: 'paused',
+      currentTurn: storedRoom.currentTurn,
+      firstTurn: storedRoom.firstTurn || storedRoom.currentTurn,
+      players: playersInRoom,
+      challengerId: null,
+      challengerTeam: storedRoom.challengerTeam || playersInRoom[0].team,
+      targetTeam: storedRoom.targetTeam || playersInRoom[1].team,
+      turnDurationMs,
+      waitingTimer: null,
+      reconnectTimer: null,
+      stateSnapshot: storedRoom.stateSnapshot || null,
+      turnStartPending: Boolean(storedRoom.turnStartPending),
+      turnDeadline: 0,
+      pausedTurnRemainingMs: remainingTurnMs,
+      reconnectDeadline: disconnectedAt
+    };
+    room.reconnectTimer = setTimeout(() => {
+      if (rooms.get(room.roomId) !== room || room.state !== 'paused') return;
+      emitRoomEnded(room, 'opponent-left');
+      emitLobbyList();
+      persistRooms();
+    }, Math.max(0, disconnectedAt - now));
+    rooms.set(room.roomId, room);
+    restoredCount += 1;
+  });
+
+  if (restoredCount > 0 || expiredCount > 0) {
+    console.log(`Restored ${restoredCount} online match(es); expired ${expiredCount} match(es) past reconnect grace.`);
+  }
+  persistRooms();
+}
+
+restoreRooms();
+const roomStateHeartbeat = setInterval(persistRooms, ROOM_STATE_HEARTBEAT_MS);
+roomStateHeartbeat.unref();
+
+process.on('SIGINT', () => {
+  clearInterval(roomStateHeartbeat);
+  persistRooms();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  clearInterval(roomStateHeartbeat);
+  persistRooms();
+  process.exit(0);
+});
 
 function sanitizePlayerName(name) {
   return String(name || 'Player').trim().slice(0, 20) || 'Player';
 }
 
-function emitLobbyList() {
+function emitLobbyList(targetSocket = null) {
   const onlinePlayers = Array.from(players.values()).filter((player) => !findRoomForSession(player.sessionId)).map((player) => ({
     id: player.id,
     name: player.name,
     team: player.team || null
   }));
 
-  io.emit('lobby:list', onlinePlayers);
+  if (targetSocket) targetSocket.emit('lobby:list', onlinePlayers);
+  else io.emit('lobby:list', onlinePlayers);
 }
 
 function findRoomForSocket(socketId) {
@@ -56,6 +227,7 @@ function emitRoomEnded(room, reason) {
     if (player.socketId) io.to(player.socketId).emit('match:ended', { reason });
   });
   rooms.delete(room.roomId);
+  persistRooms();
 }
 
 function scheduleWaitingRoomExpiry(room) {
@@ -89,7 +261,9 @@ function emitRoomTurn(room) {
   if (room.state !== 'active' || !roomIsFullyConnected(room)) return;
   io.to(room.players.map((player) => player.socketId)).emit('match:turn', {
     roomId: room.roomId,
-    currentTurnId: room.currentTurn
+    currentTurnId: room.currentTurn,
+    turnRemainingMs: getTurnRemainingMs(room),
+    turnDurationMs: room.turnDurationMs
   });
 }
 
@@ -102,7 +276,14 @@ function roomSummary(room) {
       team: player.team
     })),
     currentTurnId: room.currentTurn,
-    state: room.state
+    firstTurnId: room.firstTurn,
+    state: room.state,
+    turnDurationMs: room.turnDurationMs,
+    stateSnapshot: room.stateSnapshot,
+    turnStartPending: room.turnStartPending,
+    turnRemainingMs: room.state === 'paused'
+      ? room.pausedTurnRemainingMs
+      : getTurnRemainingMs(room)
   };
 }
 
@@ -129,15 +310,23 @@ io.on('connection', (socket) => {
       previousPlayer.socketId = socket.id;
       previousPlayer.disconnectedAt = null;
       if (previousRoom.currentTurn === previousSocketId) previousRoom.currentTurn = socket.id;
+      if (previousRoom.firstTurn === previousSocketId) previousRoom.firstTurn = socket.id;
       previousRoom.state = roomIsFullyConnected(previousRoom) ? 'active' : 'paused';
-      if (previousRoom.state === 'active') clearRoomTimers(previousRoom);
+      if (previousRoom.state === 'active') {
+        clearRoomTimers(previousRoom);
+        previousRoom.turnDeadline = previousRoom.turnDurationMs === 0
+          ? 0
+          : Date.now() + Math.max(0, previousRoom.pausedTurnRemainingMs ?? previousRoom.turnDurationMs);
+        previousRoom.pausedTurnRemainingMs = null;
+        previousRoom.reconnectDeadline = null;
+      }
+      persistRooms();
       socket.emit('match:resume', roomSummary(previousRoom));
       previousRoom.players.forEach((roomPlayer) => {
         if (roomPlayer.socketId && roomPlayer.socketId !== socket.id) {
           io.to(roomPlayer.socketId).emit('match:resumed', roomSummary(previousRoom));
         }
       });
-      emitRoomTurn(previousRoom);
     } else if (requestedSessionId) {
       socket.emit('match:resume-failed', { reason: 'match-ended' });
     }
@@ -146,7 +335,12 @@ io.on('connection', (socket) => {
     emitLobbyList();
   });
 
-  socket.on('player:challenge', ({ targetId, team }) => {
+  socket.on('lobby:refresh', () => {
+    if (!players.has(socket.id)) return;
+    emitLobbyList(socket);
+  });
+
+  socket.on('player:challenge', ({ targetId, team, turnDurationMs }) => {
     const challenger = players.get(socket.id);
     const target = players.get(targetId);
     if (!challenger || !target || targetId === socket.id) return;
@@ -157,11 +351,13 @@ io.on('connection', (socket) => {
 
     const challengerTeam = team === 'dark' ? 'dark' : 'light';
     const targetTeam = challengerTeam === 'light' ? 'dark' : 'light';
+    const matchTurnDurationMs = normalizeTurnDurationMs(turnDurationMs);
     const roomId = `room-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
     rooms.set(roomId, {
       roomId,
       state: 'waiting',
       currentTurn: socket.id,
+      firstTurn: socket.id,
       players: [
         { socketId: socket.id, sessionId: challenger.sessionId, name: challenger.name, team: challengerTeam },
         { socketId: targetId, sessionId: target.sessionId, name: target.name, team: targetTeam }
@@ -169,8 +365,13 @@ io.on('connection', (socket) => {
       challengerId: socket.id,
       challengerTeam,
       targetTeam,
+      turnDurationMs: matchTurnDurationMs,
       waitingTimer: null,
-      reconnectTimer: null
+      reconnectTimer: null,
+      stateSnapshot: null,
+      turnStartPending: false,
+      turnDeadline: 0,
+      pausedTurnRemainingMs: null
     });
     scheduleWaitingRoomExpiry(rooms.get(roomId));
 
@@ -180,7 +381,8 @@ io.on('connection', (socket) => {
       challengerName: challenger.name,
       challengerTeam,
       targetTeam,
-      forcedTeam: targetTeam
+      forcedTeam: targetTeam,
+      turnDurationMs: matchTurnDurationMs
     });
 
     socket.emit('challenge:sent', {
@@ -200,6 +402,8 @@ io.on('connection', (socket) => {
 
     room.state = 'active';
     clearRoomTimers(room);
+    room.turnDeadline = room.turnDurationMs === 0 ? 0 : Date.now() + room.turnDurationMs;
+    room.turnStartPending = false;
     const roomPlayers = room.players.map((player) => ({
       id: player.socketId,
       name: player.name,
@@ -210,8 +414,12 @@ io.on('connection', (socket) => {
       roomId,
       mode: 'online',
       currentTurnId: room.currentTurn,
-      players: roomPlayers
+      firstTurnId: room.firstTurn,
+      players: roomPlayers,
+      turnRemainingMs: getTurnRemainingMs(room),
+      turnDurationMs: room.turnDurationMs
     });
+    persistRooms();
   });
 
   socket.on('match:action', (payload) => {
@@ -221,6 +429,11 @@ io.on('connection', (socket) => {
     const opponent = room.players.find((player) => player.socketId !== socket.id);
     if (!opponent) return;
 
+    if (payload?.type === 'sync') {
+      room.stateSnapshot = payload;
+      if (room.turnStartPending) room.turnStartPending = false;
+      persistRooms();
+    }
     socket.to(opponent.socketId).emit('match:action', payload);
   });
 
@@ -232,6 +445,9 @@ io.on('connection', (socket) => {
     if (!nextPlayer) return;
 
     room.currentTurn = nextPlayer.socketId;
+    room.turnDeadline = room.turnDurationMs === 0 ? 0 : Date.now() + room.turnDurationMs;
+    room.turnStartPending = true;
+    persistRooms();
     emitRoomTurn(room);
   });
 
@@ -258,13 +474,19 @@ io.on('connection', (socket) => {
       }
 
       room.state = 'paused';
+      if (room.turnDeadline) {
+        room.pausedTurnRemainingMs = Math.max(0, room.turnDeadline - Date.now());
+        room.turnDeadline = 0;
+      }
+      room.reconnectDeadline = Date.now() + RECONNECT_GRACE_MS;
       const otherPlayers = room.players.filter((player) => player.socketId);
       otherPlayers.forEach((player) => io.to(player.socketId).emit('match:paused', { roomId, graceMs: RECONNECT_GRACE_MS }));
       room.reconnectTimer = setTimeout(() => {
         if (rooms.get(roomId) !== room || room.state !== 'paused') return;
         emitRoomEnded(room, 'opponent-left');
         emitLobbyList();
-      }, RECONNECT_GRACE_MS);
+      }, Math.max(0, room.reconnectDeadline - Date.now()));
+      persistRooms();
     }
 
     emitLobbyList();

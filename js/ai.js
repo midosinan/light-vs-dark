@@ -10,7 +10,7 @@
     // إعدادات "قوة التفكير": زيادة الأرقام تجعل الكمبيوتر أقوى وأبطأ في التفكير
     const AI_LEVEL = { budgetMs: 300, maxN: 40, horizon: 6, topK: 7 };
     const THINK_DELAY_MS = 500;   // مهلة قبل كل حركة (ليتابعها اللاعب)
-    const KEY_BY_NAME = { 'light-shield': 'shield', 'light-healer': 'healer', 'falcon': 'falcon', 'sword-of-justice': 'sword', 'silent-neighbor': 'silent' };
+    const KEY_BY_NAME = { 'light-shield': 'shield', 'light-healer': 'healer', 'falcon': 'falcon', 'sword-of-justice': 'sword', 'silent-neighbor': 'silent', 'cunning-trader': 'trader', 'vault-guardian': 'vaultGuardian' };
 
     const statsKey = (team) => (team === 'dark' ? 'darkTeam' : 'lightTeam');
     const otherTeam = (team) => (team === 'dark' ? 'light' : 'dark');
@@ -28,12 +28,12 @@
     }
 
     // ------------------------------------------------------------------ نقل حالة اللعبة الحقيقية إلى المحرك
-    const toSim = (c) => ({ name: c.id, key: KEY_BY_NAME[c.id] || null, cost: c.cost, hp: c.health, atk: c.attack, isBank: Boolean(c.isBankCard) });
+    const toSim = (c) => ({ id: c.id, name: c.id, key: KEY_BY_NAME[c.id] || getBankCardRuleKey(c.id), cost: c.cost, hp: c.health, atk: c.attack, isBank: Boolean(c.isBankCard) });
 
     function bankDefinitions() {
         return [...battleShop.querySelectorAll('.bank-card[data-bank-cost]')]
-            .filter((el) => !el.classList.contains('graveyard-bank-card') && el.dataset.bankAction !== 'lottery' && el.dataset.cardHealth)
-            .map((el) => ({ name: el.dataset.bankName, cost: Number(el.dataset.bankCost), hp: Number(el.dataset.cardHealth), atk: Number(el.dataset.cardAttack) }));
+            .filter((el) => !el.classList.contains('graveyard-bank-card') && el.dataset.bankAction !== 'lottery' && el.dataset.cardHealth && !el.hidden)
+            .map((el) => ({ id: getBankCardId(el.dataset.bankName), name: el.dataset.bankName, key: getBankCardRuleKey(el.dataset.bankName), cost: Number(el.dataset.bankCost), hp: Number(el.dataset.cardHealth), atk: Number(el.dataset.cardAttack) }));
     }
 
     function mirrorTeam(team, slots, isComputer) {
@@ -52,7 +52,10 @@
         return {
             hp: stats.health, gold: stats.gold, board, cards,
             deployedThisTurn: isComputer ? cardsDeployedThisTurn : 0,
-            deployed: new Set(deployedCardNames[team]),
+            deployed: new Set([
+                ...deployedCardNames[team],
+                ...board.filter(Boolean).map((card) => card.def.id)
+            ]),
             grave: graveyardCards.filter((c) => c.team === team).map((c) => ({ def: toSim(c) })),
             gth: goldToHealthUsed[team], htg: healthToGoldUsed[team], drop
         };
@@ -75,6 +78,8 @@
     function getTranslatedCardName(cardId, team) {
         const lang = document.documentElement.getAttribute('lang') || 'en';
         const t = translations[lang];
+        const bankCard = battleCards[team].find((card) => card.isBankCard && (card.id === cardId || card.name === cardId));
+        if (bankCard) return getTranslatedBankCardName(bankCard.name);
         const teamCards = t.cards[team];
         const cardIndex = battleCards[team].findIndex(c => c.id === cardId);
         if (cardIndex >= 0 && teamCards[cardIndex]) {
@@ -86,7 +91,9 @@
     function aiDeploy(team, simDef, slotIndex, allowSacrifice) {
         const def = battleCards[team].find((c) => c.id === simDef.name || c.name === simDef.name);
         const slot = computerDropSlots[slotIndex];
-        if (!def || !slot || slot.classList.contains('occupied-slot') || deployedCardNames[team].has(def.name)) return false;
+        if (!def || !slot || slot.classList.contains('occupied-slot') || deployedCardNames[team].has(def.id)
+            || [...computerDropSlots].some((boardSlot) => boardSlot.classList.contains('occupied-slot') && boardSlot.dataset.cardName === def.id)) return false;
+        if (!canDeployCard(team, def.id)) return false;
 
         if (cardsDeployedThisTurn >= AIEngine.RULES.maxDeployPerTurn) return false;
 
@@ -97,10 +104,11 @@
             if (stats.gold < cost) return false;
         }
         stats.gold -= cost;
-        deployedCardNames[team].add(def.name);
+        deployedCardNames[team].add(def.id);
         dropDiscount[team].delete(def.name);
         cardsDeployedThisTurn += 1;
         aiRenderCard(slot, def);
+        if (getBankCardRuleKey(def.id) === 'resurrect') removeSilentNeighborsForResurrect(team);
         renderPlayerStats();
         const translatedName = getTranslatedCardName(def.id, team);
         say(`الكمبيوتر أنزل ${translatedName} في الساحة (تكلفة ${cost}).`);
@@ -155,28 +163,37 @@
         if (!neighborSlot || !targetSlot || battlePhase < 2 || neighborSlot.dataset.cardName !== 'silent-neighbor' || neighborSlot.dataset.attackUsed === 'true') return false;
         if (!targetSlot.classList.contains('occupied-slot') || isSlotBlocked(targetSlot)) return false;
         const key = getBlockKey(targetSlot);
+
+        // تحديد مدة المنع بناءً على من يبدأ الجولة
+        // الكمبيوتر (فريق الظلام) دائماً هو الثاني في تحدي الكمبيوتر
+        // في الأونلاين، يعتمد على من بدأ المباراة
+        const blockDuration = 2; // الكمبيوتر يلعب ثانياً، لذا المنع لجولتين
+
         tempEffects.blockedCards.add(key);
-        tempEffects.silencedBy.set(key, 'الجار الصامت');
+        tempEffects.silencedBy.set(key, getBlockKey(neighborSlot));
+        tempEffects.blockDuration.set(key, blockDuration);
         targetSlot.classList.add('blocked-card');
         turnActions.computer = true;
         const playerTeam = battleScreen.dataset.selectedTeam;
         const translatedName = getTranslatedCardName(targetSlot.dataset.cardName, playerTeam);
-        say(`الجار الصامت منع ${translatedName} من الهجوم في دورك القادم.`);
+        say(`الجار الصامت منع ${translatedName} من الهجوم لـ ${blockDuration} جولات.`);
         return true;
     }
 
     function aiBuyBank(team, bankDef, slotIndex) {
-        const element = [...battleShop.querySelectorAll('.bank-card[data-bank-cost]')].find((el) => el.dataset.bankName === bankDef.name && !el.classList.contains('graveyard-bank-card'));
-        if (!element || battlePhase < 3 || battleCards[team].some((c) => c.name === bankDef.name)) return false;
+        const element = [...battleShop.querySelectorAll('.bank-card[data-bank-cost]')].find((el) => el.dataset.bankName === bankDef.name && !el.classList.contains('graveyard-bank-card') && !el.hidden);
+        if (!element || battlePhase < 3 || bankSoldCardNames.has(normalizeBankCardName(bankDef.name))) return false;
         const stats = playerStats[statsKey(team)];
         const cost = Number(element.dataset.bankCost);
         if (stats.gold < cost) return false;
         stats.gold -= cost;
         battleCards[team].push({
+            id: getBankCardId(bankDef.name),
             image: element.querySelector('img').getAttribute('src'), name: bankDef.name, cost: 1,
             health: Number(element.dataset.cardHealth), attack: Number(element.dataset.cardAttack),
-            description: 'كرت تم شراؤه من البنك.', isBankCard: true
+            description: getBankCardDescription(bankDef.name), isBankCard: true
         });
+        markBankCardSold(bankDef.name);
         renderPlayerStats();
         turnActions.computer = true;
         const translatedName = getTranslatedCardName(bankDef.name, team) || bankDef.name;
@@ -186,15 +203,15 @@
 
     function aiBuyBack(team, graveIndex, slotIndex) {
         const entry = graveyardCards.filter((c) => c.team === team)[graveIndex];
-        if (!entry || battlePhase < 3) return false;
+        if (!entry || battlePhase < 3 || deployedCardNames[team].has(entry.id)
+            || [...computerDropSlots].some((slot) => slot.classList.contains('occupied-slot') && slot.dataset.cardName === entry.id)) return false;
         const stats = playerStats[statsKey(team)];
         if (stats.gold < entry.cost) return false;
         const purchaseCost = entry.cost;
         stats.gold -= purchaseCost;
         entry.element?.remove();
         graveyardCards.splice(graveyardCards.indexOf(entry), 1);
-        deployedCardNames[team].delete(entry.name);
-        dropDiscount[team].add(entry.name);
+        dropDiscount[team].add(entry.id);
         renderGraveyardBankCards();
         updateGraveyardBadge();
         renderPlayerStats();
@@ -234,7 +251,7 @@
         stats.gold -= 2;
         stats.gold = Math.max(0, stats.gold + outcome);
         turnActions.computer = true;
-        renderPlayerStats();
+        renderPlayerStats(team);
         say(outcome > 0 ? 'الكمبيوتر لعب لعبة الحظ وكسب 10 ذهبات!' : outcome < 0 ? 'الكمبيوتر لعب لعبة الحظ وخسر 5 ذهبات.' : 'الكمبيوتر لعب لعبة الحظ ولم يكسب شيئاً.');
         return true;
     }
@@ -255,8 +272,8 @@
 
     // ------------------------------------------------------------------ دور الكمبيوتر
     function computerHasAnyMove(team) {
-        // نفس تعريف "توجد حركة" في المحرك، مبنياً على الحالة الحقيقية
-        return buildMirror(team, false).anyAction(team);
+        const game = buildMirror(team, false);
+        return new AIEngine.SimBot(AIEngine.SELF_PARAMS).candidates(game, team).length > 0;
     }
 
     async function runComputerTurn(sessionId) {
@@ -267,7 +284,9 @@
         resetAttackAvailability();
         turnActions.computer = false;
         cardsDeployedThisTurn = 0;
-        document.querySelector('.turn-indicator').textContent = `المرحلة ${battlePhase} - دور الكمبيوتر`;
+        const lang = document.documentElement.getAttribute('lang') || 'en';
+        const t = translations[lang];
+        setTurnIndicatorMessage(t.selection.computerTurn.replace('{phase}', battlePhase));
         lightPlayerBanner.classList.toggle('active-player', team === 'light');
         darkPlayerBanner.classList.toggle('active-player', team === 'dark');
         say('الكمبيوتر يفكر...');
@@ -308,9 +327,10 @@
 
         await sleep(THINK_DELAY_MS);
         if (!alive()) return;
+        if (checkEmptyArenaDefeat(team)) return;
         clearBlockedCards(team);                       // المنع الموجّه لكروت الكمبيوتر ينتهي بانتهاء دوره
         const completedPhase = battlePhase;
-        advanceBattlePhase({ clearBlocks: false });    // الكمبيوتر هو الثاني: هو من يُغلق الجولة
+        advanceBattlePhase({ clearBlocks: false, tieBreakerTeam: team });    // الكمبيوتر هو الثاني: هو من يُغلق الجولة
         if (isGameOver) return;
         const income = phaseGoldIncome[battlePhase] && battlePhase > completedPhase ? phaseGoldIncome[battlePhase] : 0;
 
@@ -324,10 +344,11 @@
         updateAttackButtons();
         updateBankControls();
         endTurnButton.hidden = false;
-        endTurnButton.textContent = 'إنهاء الدور';
+        endTurnButton.textContent = battleText('endTurn', 'End Turn');
         updateTurnIndicator();
         updateBattleNews(`الحكم: بدأ دورك (المرحلة ${battlePhase}).${income > 0 ? ` تم توزيع ${income} ذهب لكل لاعب.` : ''}`);
         forceWithdrawalIfNoPlayerEvent();
+        startPlayerTurnTimer();
     }
 
     // ------------------------------------------------------------------ تسجيل الوضع
@@ -337,10 +358,10 @@
         stats: { turns: 0, acted: 0, rejected: 0 },   // إحصاءات للفحص والاختبار
 
         // بدء مباراة ضد الكمبيوتر (اللاعب يبدأ أولاً)
-        start(playerTeam) {
+        start(playerTeam, turnDurationMs = getSelectedTurnDurationMs()) {
             activeMode = AIMode;
             AIMode.session += 1;
-            showBattleScreen(playerTeam, true);
+            showBattleScreen(playerTeam, true, turnDurationMs);
             updateTurnIndicator();
             updateBattleNews(battleText('aiStarted', 'The computer match has started. Deploy your cards, then end your turn.'));
         },

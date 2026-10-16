@@ -88,8 +88,96 @@
 }
 
 .welcome-actions .cta-button {
+    position: relative;
     top: 0;
+    width: min(100%, 280px);
     min-width: 220px;
+    min-height: 62px;
+    padding: 12px 48px;
+    border: 2px solid var(--gold-primary);
+    border-radius: 5px;
+    color: #fff;
+    font-family: var(--font-fantasy);
+    font-size: clamp(15px, 1.5vw, 19px);
+    font-weight: bold;
+    line-height: 1.35;
+    text-align: center;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, .9);
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.welcome-actions .cta-button::before {
+    position: absolute;
+    inset-inline-start: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Material Symbols Rounded';
+    font-size: 25px;
+    font-weight: 500;
+    line-height: 1;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+#challenge-humans {
+    background: linear-gradient(180deg, #2878a5, #123a5a);
+    box-shadow: 0 4px 0 #09283f, 0 0 18px rgba(0, 170, 255, .25);
+}
+
+#challenge-humans::before {
+    content: 'groups';
+}
+
+#challenge-computer {
+    background: linear-gradient(180deg, #a72b30, #541116);
+    box-shadow: 0 4px 0 #330b0e, 0 0 18px rgba(255, 34, 0, .22);
+}
+
+#challenge-computer::before {
+    content: 'smart_toy';
+}
+
+.welcome-actions .cta-button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.12);
+}
+
+#challenge-humans:hover {
+    box-shadow: 0 6px 0 #09283f, 0 0 25px var(--blue-glow);
+}
+
+#challenge-computer:hover {
+    box-shadow: 0 6px 0 #330b0e, 0 0 24px var(--red-glow);
+}
+
+.welcome-actions .cta-button:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .65);
+}
+
+.welcome-actions .cta-button:focus-visible {
+    outline: 3px solid var(--gold-light);
+    outline-offset: 4px;
+}
+
+@media (max-width: 480px) {
+    .welcome-actions {
+        gap: 14px;
+    }
+
+    .welcome-actions .cta-button {
+        width: min(100%, 320px);
+        min-width: 0;
+        min-height: 56px;
+        padding-inline: 46px;
+        font-size: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-actions .cta-button {
+        transition: none;
+    }
 }
 
 /* شاشة اختيار الفريق/الخصم تتغيّر حسب الوضع */

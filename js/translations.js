@@ -6,8 +6,8 @@ const translations = {
             light: [
                 { name: "Fierce Falcon", description: "Stealth Protection: As long as it's alive in your field, it completely prevents the opponent from targeting the Light Healer card for attack. This card protects the Light Healer from direct attacks, making it safer to provide healing to allies." },
                 { name: "Light Healer", description: "Healing and Restoration: Does not attack, but has a special healing button that heals an ally or the leader by +2 health at the cost of 2 of its health (maximum 4 heals per turn, stops when its health reaches 2)." },
-                { name: "Cunning Trader", description: "Periodic Gold Generation: Grants its team +1 gold piece automatically at the end of each turn as long as it's present on the battlefield." },
-                { name: "Vault Guardian", description: "A strong fighter that protects the team with high attack power and good health." },
+                { name: "Cunning Trader", description: "Periodic Gold Generation: Grants its team +1 gold piece automatically at the end of each round as long as it's present on the battlefield." },
+                { name: "Vault Guardian", description: "Protects its team's wealth: while on the battlefield, it prevents Forced Tax and Bankruptcy Curse from draining its team's gold." },
                 { name: "Light Shield", description: "Protects the King of Dawn from damage. The King's health does not decrease as long as the Shield is on the field." },
                 { name: "Sword of Justice", description: "Justice Protection: Can only be attacked if the attacker is stronger with higher attack power." }
             ],
@@ -37,8 +37,26 @@ const translations = {
             backButton: "Back",
             onlineLobby: "Available Players",
             loadingPlayers: "Loading players...",
+            noPlayersAvailable: "No players available at the moment. Wait a bit until a player appears, or go back and choose Challenge Computer.",
+            matchExpired: "The connection took too long and the match ended. Start a new challenge.",
+            matchEnded: "Match Ended",
+            reconnecting: "Reconnecting...",
+            economicVictory: "Match Ended - Economic Victory",
+            waitingForOpponent: "Waiting for opponent",
+            opponentTurn: "Opponent's Turn",
+            computerTurn: "Round {phase} - Computer Turn",
+            refreshPlayers: "Refresh",
+            refreshingPlayers: "Refreshing...",
+            refreshPlayersFailed: "The server did not respond. Try refreshing again.",
+            matchExpired: "The connection took too long and the match ended. Start a new challenge.",
             challengeTeamTitle: "Choose your team",
             challengeTeamPrompt: "Choose the team you will play as. Your opponent will be assigned the other team.",
+            turnDuration: "Turn duration",
+            turnDurationOpen: "Unlimited",
+            turnDuration45: "45 seconds",
+            turnDuration60: "1 minute",
+            turnDuration90: "1 minute 30 seconds",
+            turnDuration120: "2 minutes",
             challenge: "Challenge",
             lightFaction: "Light Faction",
             lightSubtitle: "(Protector of Light and Justice)",
@@ -62,6 +80,9 @@ const translations = {
             lightTeam: "Light Team",
             darkTeam: "Dark Team",
             turn: "Your Turn",
+            opponentTurn: "Opponent's Turn",
+            phaseYourTurn: "Round {phase} - Your Turn",
+            phaseOpponentTurn: "Round {phase} - Opponent's Turn",
             battlefield: "Battlefield",
             graveyard: "Graveyard",
             bank: "Bank Market",
@@ -73,20 +94,53 @@ const translations = {
             defaultMessage: "Select a card or execute a command to start your turn.",
             shopTitle: "Bank Market",
             shopClose: "Close Bank Market",
-            bankCards: "Bank Cards",
+            bankCards: {
+                resurrect: "Resurrect",
+                mercenary: "Mercenary Army",
+                tax: "Forced Tax",
+                bankruptcy: "Bankruptcy Curse",
+                luck: "Game of Luck",
+                commanderShield: "Commander's Shield",
+                goldToHealth: "Exchange Gold for Health",
+                healthToGold: "Exchange Leader Health for Gold"
+            },
+            bankCardDescriptions: {
+                resurrect: "While on the battlefield, prevents the opponent from deploying Silent Neighbor. If Silent Neighbor is already there, destroys it immediately without taking damage.",
+                mercenary: "A hired fighter with 8 health and 10 attack.",
+                tax: "At the end of each round, the opponent loses 1 gold while this card remains on the battlefield.",
+                bankruptcy: "At the end of each round, the opponent loses 2 gold while this card remains on the battlefield.",
+                commanderShield: "Protects its leader from damage while this card remains on the battlefield.",
+                luck: "Spend 2 gold for a random result: no change, +10 gold, or lose 5 gold."
+            },
+            bankCardsEn: {
+                resurrect: "Resurrect",
+                mercenary: "Mercenary Army",
+                tax: "Forced Tax",
+                bankruptcy: "Bankruptcy Curse",
+                luck: "Game of Luck",
+                commanderShield: "Commander's Shield",
+                goldToHealth: "Exchange Gold for Health",
+                healthToGold: "Exchange Leader Health for Gold"
+            },
             buyFromBank: "Buy cards from the Bank",
             recoverFromGraveyard: "Recover cards from the Graveyard",
             buy: "Buy",
             goldToHealth: "Exchange Gold for Health",
             goldToHealthCost: "3 gold -> 6 health",
+            goldToHealthNeedHealer: "Summon the Light Healer first to exchange gold for health.",
+            goldToHealthTooltip: "Exchange 3 gold for 6 health.",
             healthToGold: "Exchange Leader Health for Gold",
             healthToGoldCost: "2 leader health -> 5 gold",
+            healthToGoldLowHealth: "You cannot sacrifice when the leader has 2 health or less.",
+            healthToGoldAlreadyUsed: "This exchange has already been used this round.",
+            healthToGoldTooltip: "Exchange 2 leader health for 5 gold.",
             graveyardCards: "Graveyard Cards",
             insufficientGold: "Not enough gold",
+            insufficientGoldDeploy: "You need {cost} gold to deploy {card}, but you currently have {gold} gold.",
             ok: "OK",
-            turnConfirm: "You ended your turn without an action",
-            withdraw: "Do you want to withdraw?",
-            continueTurn: "No, I will continue",
+            turnConfirm: "You ended your turn without an action. Do you want to withdraw?",
+            withdraw: "Yes, withdraw",
+            continueTurn: "No, I don't want to continue",
             noMoveTitle: "No move available",
             emergencySacrifice: "You do not have enough gold to deploy cards and no attack targets are available. Sacrifice 2 leader health for 5 gold and continue?",
             acceptSacrifice: "Yes, sacrifice 2 health (+5 gold)",
@@ -94,11 +148,28 @@ const translations = {
             attackTitle: "Choose a target to attack",
             noOpponentCards: "There are no opponent cards on the battlefield.",
             noAttackTargets: "There are no cards that can be attacked now.",
+            blockedAttackTooltip: "This card is blocked from attacking this turn (Silent Neighbor).",
+            attackBlockedBySilent: "This card is blocked by Silent Neighbor and cannot attack this turn.",
+            attackTooWeak: "Your card needs at least as much attack power as the target.",
+            attackNeedsHigherPower: "Sword of Justice can only be attacked by a card with higher attack power.",
+            healerProtectedByFalcon: "The Light Healer is protected by the Fierce Falcon.",
+            silentBlockedByResurrect: "The Silent Neighbor cannot be deployed while the opponent has Resurrect on the battlefield.",
+            resurrectDestroysSilent: "{resurrect} destroyed {silent} without taking damage.",
+            bankRoundDrain: "{card} made {team} lose {amount} gold this round.",
+            vaultGuardianPreventedDrain: "{guardian} protected {team} and prevented {amount} gold from being drained this round.",
+            traderIncome: "{card} generated +{amount} gold for {team} this round.",
             silenceTitle: "Choose a card to block",
             noSilenceTargets: "There are no cards that can be blocked.",
             closeAttack: "Cancel attack selection",
             closeSilence: "Cancel block selection"
+            ,turnTimeout: "Time is up. Your turn was passed and 1 gold was deducted."
             ,phaseYourTurn: "Round {phase} - Your Turn"
+            ,died: "died"
+            ,healthLeft: "has {health} health left"
+            ,attackResult: "{attacker} attacked {target}: {attacker} lost {attackerLoss} health, {target} lost {targetLoss} health. Result: {attacker} {attackerResult}, {target} {targetResult}."
+            ,goldReward: "{team} got +2 gold for starting the attack and defeating {target}."
+            ,lightTeam: "Light Team"
+            ,darkTeam: "Dark Team"
             ,phaseOpponentTurn: "Round {phase} - Opponent's Turn"
             ,joinLight: "You joined the Light Team. Deploy a card and begin the attack."
             ,joinDark: "You joined the Dark Team. Deploy a card and begin the attack."
@@ -117,6 +188,85 @@ const translations = {
             ,bankMercenary: "Mercenary Army"
             ,bankTax: "Forced Tax"
             ,bankruptcy: "Bankruptcy Curse"
+            ,news: {
+                aiStarted: "The computer match has started. Deploy your cards, then end your turn."
+                ,joinedLight: "You joined the Light Team. Deploy a card and begin the attack."
+                ,joinedDark: "You joined the Dark Team. Deploy a card and begin the attack."
+                ,computerThinking: "🤖 The computer is thinking..."
+                ,computerCannotMove: "🤖 The computer could not make a move and withdrew from the match."
+                ,computerDeploy: "🤖 The computer deployed {card} on the battlefield (cost {cost})."
+                ,computerHeals: "🤖 The Light Healer restored {target} by {health} health."
+                ,computerBlocks: "🤖 The Silent Neighbor blocked {card} from attacking on your next turn."
+                ,computerBankPurchase: "🤖 The computer bought {card} from the Bank for {cost} gold."
+                ,computerGraveyardPurchase: "🤖 The computer bought {card} from the graveyard for {cost} gold."
+                ,computerDarkExchange: "🤖 The computer exchanged 3 gold for 6 health for its leader."
+                ,computerLightExchange: "🤖 The computer exchanged 3 gold for 6 health for the Light Healer."
+                ,lotteryWin: "🤖 The computer played the lottery and won 10 gold!"
+                ,lotteryLoss: "🤖 The computer played the lottery and lost 5 gold."
+                ,lotteryNoChange: "🤖 The computer played the lottery and neither won nor lost anything."
+                ,blockEffectsEnded: "Block effects ended; cards can attack again."
+                ,lightEconomicVictory: "The Light Team won an economic victory with {gold} gold!"
+                ,darkEconomicVictory: "The Dark Team won an economic victory with {gold} gold!"
+                ,noGoldForPurchase: "There is not enough gold to buy {item}."
+                ,purchaseNeedsSacrifice: "You cannot buy {item}: you do not have enough gold and cannot sacrifice leader health."
+                ,stillNotEnoughGold: "There is still not enough gold to buy {item} after the leader sacrifice."
+                ,bankUnavailable: "The Bank Market is available from Round 3."
+                ,lotteryResult: "You bought {item} for {cost} gold. Lottery result: {result}"
+                ,bankPurchase: "You bought {item} from the Bank for {cost} gold and added it to your hand."
+                ,darkGoldExchange: "The Dark Team exchanged 3 gold for 6 health for Lord of Shadows."
+                ,lightGoldExchange: "The Light Team exchanged 3 gold for 6 health for the Light Healer."
+                ,leaderHealthTooLow: "Cannot sacrifice: the leader has 2 health or less."
+                ,leaderExchangeAlreadyUsed: "The leader-health-for-gold exchange has already been used this round."
+                ,leaderSacrifice: "{leader} ({team}) sacrificed 2 health and gained 5 gold."
+                ,noAffordableCard: "Your team lost because it had no gold to deploy a card and the leader could no longer sacrifice health."
+                ,duplicateCard: "A card of this type is already on the battlefield."
+                ,tooManyCards: "You cannot deploy a third card in the same turn. Wait until the next round."
+                ,cardDeployed: "Deployed {card} and spent {cost} gold."
+                ,tapEmptySlot: "Tap an empty slot to deploy the card, or tap the card again to cancel."
+                ,phaseIncome: "Judge: entered Round {phase}; distributed {income} gold to each player."
+                ,phaseNoIncome: "Judge: entered Round {phase}; no additional gold income is available this round."
+                ,phaseNoIncomeShort: "Judge: entered Round {phase}."
+                ,lostNoEvent: "Your team lost because it could not perform any action."
+                ,leaderLost: "The {team} leader lost all health. {winner} won the match!"
+                ,noMovesAvailable: "You have no available moves. You can end your turn and wait for the next round."
+                ,noOpponentCards: "There are no opponent cards on the battlefield."
+                ,cardAlreadyBlocked: "This card is already blocked."
+                ,silentNeighborBlock: "The Silent Neighbor blocked {card} from attacking on its next turn."
+                ,lightShieldProtects: "The Light Shield protects the team leader from damage!"
+                ,lightShieldDestroyed: "The Light Shield was destroyed; the leader is no longer protected."
+                ,invalidAttack: "This attack cannot be performed: {reason}"
+                ,invalidCard: "This card is invalid."
+                ,attackTooWeak: "Cannot attack: the attacking card has less power than the target."
+                ,attackOutcomeWithGold: "{attacker} attacked {target}: {attacker} lost {targetAttack} health and {target} lost {attackerAttack} health. Result: {attacker} {attackerResult}, and {target} {targetResult}. {team} gained 2 gold for initiating the attack and defeating {target}."
+                ,attackOutcome: "{attacker} attacked {target}: {attacker} lost {targetAttack} health and {target} lost {attackerAttack} health. Result: {attacker} {attackerResult}, and {target} {targetResult}."
+                ,healerUsesExhausted: "The Light Healer has used all available heals this round."
+                ,healerAtLowHealth: "The Light Healer cannot heal when its health reaches 2."
+                ,healerRestores: "The Light Healer restored {target} by {health} health and lost 2 health."
+                ,graveyardInsufficientGold: "You do not have enough gold to buy {card}. You need {cost} gold."
+                ,graveyardPurchase: "You recovered {card} from the graveyard for {cost} gold. Deploying it will cost only 1 gold."
+                ,turnStarted: "Your turn began (Round {phase})."
+                ,judgeTurnStarted: "Judge: your turn began (Round {phase}). Distributed {income} gold to each player."
+                ,judgeTurnStartedNoIncome: "Judge: your turn began (Round {phase})."
+                ,opponentTurn: "It is the opponent's turn."
+                ,challengeFailed: "Unable to send the challenge."
+                ,playerAlreadyChallenged: "One of the players is already in another challenge."
+                ,challengeIncoming: "Do you want to accept {name}'s challenge?\nYou will be assigned automatically to the {team} team. Turn duration: {duration}."
+                ,challengeSent: "Challenge sent to {name}; you chose to play as {team}."
+                ,challengeSentAsTeam: "Challenge sent to {name} as the Light Team."
+                ,challengeSentWithTeam: "Challenge sent to {name}; you chose the {team}."
+                ,onlineMatchStarted: "Online match started against {name}."
+                ,challengeExpired: "The challenge expired before it was accepted."
+                ,opponentTemporarilyDisconnected: "The opponent disconnected temporarily. The match will be saved for a short time."
+                ,matchEndedDisconnected: "The match ended because the connection was not restored in time."
+                ,opponentDisconnectedWin: "The opponent disconnected. The match is awarded to you."
+                ,youTemporarilyDisconnected: "You disconnected temporarily. The match will resume automatically when the connection returns."
+                ,matchRestored: "The match was restored after reconnecting."
+                ,roomRestored: "The match room was restored. Waiting for the other player."
+                ,turnEndedWaiting: "Your turn ended; waiting for the opponent."
+                ,computerTurnEndedWaiting: "Your turn ended; waiting for the opponent."
+                ,lostWithoutAction: "Your team lost because it ended its turn without attacking, deploying, healing, or playing the lottery."
+                ,emptyArenaLoss: "The {team} team lost because its battlefield was empty when its turn ended."
+            }
         },
         card: {
             health: "Health",
@@ -173,7 +323,7 @@ const translations = {
             victory: "Victory Conditions",
             victoryDesc: "The system announces the result automatically when one of these conditions is met:",
             victory1: "<strong>Military Victory:</strong> Opponent leader health reaches <strong>0</strong>.",
-            victory2: "<strong>Economic Victory:</strong> Your gold reaches <strong>25</strong> pieces in your treasury.",
+            victory2: "<strong>Economic Victory:</strong> Your gold reaches <strong>30</strong> pieces in your treasury.",
             connection: "Connection and Disconnection",
             connection1: "Turn indicator shows when you can execute commands.",
             connection2: "If disconnected, reopen the match or click back then join again.",
@@ -187,7 +337,7 @@ const translations = {
                 { name: "الصقر الجارح", description: "حماية التخفي: طالما هو حي في ساحتك، يمنع الخصم تماماً من استهداف كرت معالجة النور بالهجوم. الكرت يحمي معالجة النور من الهجمات المباشرة مما يجعلها أكثر أماناً لتقديم العلاج للحلفاء." },
                 { name: "معالجة النور", description: "المعالجة والترميم: لا تهاجم، بل تملك زراً خاصاً للمعالجة يعالج حليفاً أو القائد بـ +2 حياة مقابل خصم 2 من صحتها (بحد أقصى 4 علاجات في الجولة، وتتوقف إذا بلغت صحتها 2)." },
                 { name: "التاجر الماكر", description: "توليد الذهب الدوري: يمنح فريقه +1 قطعة ذهب تلقائياً في نهاية كل جولة طالما هو متواجد في ساحة المعركة." },
-                { name: "حارس الخزنة", description: "مقاتل قوي يحمي الفريق بقوة هجومية عالية وصحة جيدة." },
+                { name: "حارس الخزنة", description: "يحمي أموال فريقه: ما دام في الساحة، يبطل مفعول الضريبة القسرية ولعنة الإفلاس ويمنع تسرب الذهب." },
                 { name: "درع النور", description: "يحمي ملك الفجر من الضرر. حياة الملك لا تنقص طالما الدرع في الساحة." },
                 { name: "سيف العدالة", description: "حماية العدالة: لا يمكن هجومه إلا إذا كان المهاجم أقوى منه بقوة هجومية أعلى." }
             ],
@@ -217,8 +367,26 @@ const translations = {
             backButton: "رجوع",
             onlineLobby: "اللاعبون المتاحون",
             loadingPlayers: "جارٍ تحميل اللاعبين...",
+            noPlayersAvailable: "لا يوجد لاعبون متاحون الآن. انتظر قليلاً حتى يظهر لاعب، أو ارجع واختر تحدي الكمبيوتر.",
+            matchExpired: "انتهت المباراة بسبب طول انقطاع الاتصال. ابدأ تحديًا جديدًا.",
+            matchEnded: "انتهت المباراة",
+            reconnecting: "جارٍ إعادة الاتصال",
+            economicVictory: "انتهت المباراة - نصر اقتصادي",
+            waitingForOpponent: "انتظار دور الخصم",
+            opponentTurn: "دور الخصم",
+            computerTurn: "المرحلة {phase} - دور الكمبيوتر",
+            refreshPlayers: "تحديث الخادم",
+            refreshingPlayers: "جارٍ التحديث...",
+            refreshPlayersFailed: "لم يستجب الخادم. حاول التحديث مرة أخرى.",
+            matchExpired: "انتهت المباراة بسبب طول انقطاع الاتصال. ابدأ تحديًا جديدًا.",
             challengeTeamTitle: "اختر فريقك",
             challengeTeamPrompt: "اختر الفريق الذي ستلعب به. سيُسند الفريق الآخر إلى خصمك.",
+            turnDuration: "مدة الدور",
+            turnDurationOpen: "وقت مفتوح",
+            turnDuration45: "45 ثانية",
+            turnDuration60: "دقيقة واحدة",
+            turnDuration90: "دقيقة ونصف",
+            turnDuration120: "دقيقتان",
             challenge: "تحدي",
             lightFaction: "فريق النور",
             lightSubtitle: "(حامي النور والعدالة)",
@@ -242,6 +410,9 @@ const translations = {
             lightTeam: "فريق النور",
             darkTeam: "فريق الظلام",
             turn: "دورك",
+            opponentTurn: "دور الخصم",
+            phaseYourTurn: "المرحلة {phase} - دورك",
+            phaseOpponentTurn: "المرحلة {phase} - دور الخصم",
             battlefield: "ساحة المعركة",
             graveyard: "المقبرة",
             bank: "سوق البنك",
@@ -253,20 +424,56 @@ const translations = {
             defaultMessage: "اختر كرتًا أو نفّذ أمرًا لبدء دورك.",
             shopTitle: "سوق البنك",
             shopClose: "إغلاق سوق البنك",
-            bankCards: "كروت البنك",
+            bankCards: {
+                resurrect: "بعث الأرواح",
+                mercenary: "جيش المرتزقة",
+                tax: "ضريبة قسرية",
+                bankruptcy: "لعنة الإفلاس",
+                luck: "لعبة الحظ",
+                commanderShield: "درع القائد",
+                goldToHealth: "استبدال الذهب بالحياة",
+                healthToGold: "استبدال حياة القائد بالذهب"
+            },
+            bankCardDescriptions: {
+                resurrect: "ما دام في الساحة، يمنع الخصم من إنزال الجار الصامت. وإذا كان الجار الصامت في الساحة، يقضي عليه فورًا دون أن يتلقى ضررًا.",
+                mercenary: "مقاتل مأجور يمتلك 8 نقاط صحة و10 نقاط هجوم.",
+                tax: "في نهاية كل جولة، يخسر الخصم قطعة ذهب واحدة ما دامت هذه البطاقة في الساحة.",
+                bankruptcy: "في نهاية كل جولة، يخسر الخصم قطعتين من الذهب ما دامت هذه البطاقة في الساحة.",
+                commanderShield: "يحمي قائد فريقك من الضرر ما دامت هذه البطاقة في الساحة.",
+                luck: "أنفق قطعتين من الذهب لتحصل على نتيجة عشوائية: لا تغيير، أو ربح 10 ذهب، أو خسارة 5 ذهب."
+            },
+            bankCardsEn: {
+                resurrect: "Resurrect",
+                mercenary: "Mercenary Army",
+                tax: "Forced Tax",
+                bankruptcy: "Bankruptcy Curse",
+                luck: "Game of Luck",
+                commanderShield: "Commander's Shield",
+                goldToHealth: "Exchange Gold for Health",
+                healthToGold: "Exchange Leader Health for Gold"
+            },
             buyFromBank: "شراء كروت من البنك",
             recoverFromGraveyard: "استعادة كروت من المقبرة",
             buy: "شراء",
+            bankCardDescription: "كرت تم شراؤه من البنك",
+            purchasedFromBank: "كرت تم شراؤه من البنك",
+            purchasedFromBankAr: "كرت تم شراؤه من البنك",
             goldToHealth: "استبدال الذهب بالحياة",
             goldToHealthCost: "3 ذهب ← 6 حياة",
+            goldToHealthNeedHealer: "أنزل معالجة النور أولاً لاستبدال الذهب بالحياة.",
+            goldToHealthTooltip: "استبدل 3 ذهب بـ6 حياة.",
             healthToGold: "استبدال حياة القائد بالذهب",
             healthToGoldCost: "2 حياة قائد ← 5 ذهب",
+            healthToGoldLowHealth: "لا يمكن التضحية إذا كانت حياة القائد 2 أو أقل.",
+            healthToGoldAlreadyUsed: "تم استخدام هذا الاستبدال بالفعل في هذه الجولة.",
+            healthToGoldTooltip: "استبدل نقطتي حياة من القائد بـ5 ذهب.",
             graveyardCards: "كروت المقبرة",
             insufficientGold: "لا تملك ذهبًا كافيًا",
+            insufficientGoldDeploy: "تحتاج إلى {cost} ذهب لإنزال {card}، بينما رصيدك الحالي {gold} ذهب.",
             ok: "حسنًا",
-            turnConfirm: "لقد أنهيت دورك بدون أي حدث",
-            withdraw: "هل تريد الانسحاب؟",
-            continueTurn: "لا، سوف أواصل",
+            turnConfirm: "لقد أنهيت دورك بدون اي حدث هل تريد الانسحاب",
+            withdraw: "نعم انسحب",
+            continueTurn: "لا اريد المواصلة",
             noMoveTitle: "عجز عن تنفيذ حركة",
             emergencySacrifice: "لا تملك ذهبًا كافيًا لإنزال كروت ولا توجد أهداف هجومية متاحة لك. هل تريد التضحية بنقطتي حياة (2❤) من القائد للحصول على 5 قطع ذهب ومواصلة اللعب؟",
             acceptSacrifice: "نعم، تضحية بـ 2 حياة (+5 ذهب)",
@@ -274,11 +481,28 @@ const translations = {
             attackTitle: "اختر من تريد الهجوم عليه",
             noOpponentCards: "لا توجد كروت للخصم في الساحة.",
             noAttackTargets: "لا توجد كروت يمكن مهاجمتها الآن.",
+            blockedAttackTooltip: "هذا الكرت ممنوع من الهجوم في هذا الدور (الجار الصامت).",
+            attackBlockedBySilent: "منع الجار الصامت هذا الكرت من الهجوم في هذا الدور.",
+            attackTooWeak: "يجب أن تكون قوة كرتك مساوية لقوة الهدف أو أعلى منها.",
+            attackNeedsHigherPower: "لا يمكن مهاجمة سيف العدالة إلا بكرت أقوى منه هجوميًا.",
+            healerProtectedByFalcon: "تحمي الصقر الجارح معالجة النور من الهجوم.",
+            silentBlockedByResurrect: "لا يمكن إنزال الجار الصامت ما دام بعث الأرواح في ساحة الخصم.",
+            resurrectDestroysSilent: "قضى {resurrect} على {silent} دون أن يتلقى أي ضرر.",
+            bankRoundDrain: "تسببت {card} في خسارة {team} مقدار {amount} ذهب في هذه الجولة.",
+            vaultGuardianPreventedDrain: "حمى {guardian} فريق {team} ومنع تسرب {amount} ذهب في هذه الجولة.",
+            traderIncome: "منح {card} فريق {team} مقدار {amount} ذهب إضافي في هذه الجولة.",
             silenceTitle: "اختر كرتًا لمنعه من الهجوم",
             noSilenceTargets: "لا توجد كروت يمكن منعها.",
             closeAttack: "إلغاء اختيار الهجوم",
             closeSilence: "إلغاء اختيار المنع"
+            ,turnTimeout: "انتهى الوقت، تم تمرير دورك وخصم قطعة ذهب واحدة."
             ,phaseYourTurn: "المرحلة {phase} - دورك"
+            ,died: "مات"
+            ,healthLeft: "بقيت له {health} حياة"
+            ,attackResult: "هجوم {attacker} على {target}: خسر {attacker} عدد {attackerLoss} حياة، وخسر {target} عدد {targetLoss} حياة. النتيجة: {attacker} {attackerResult}، و{target} {targetResult}."
+            ,goldReward: " حصل {team} على +2 ذهب لأنه بدأ الهجوم وأسقط {target}."
+            ,lightTeam: "فريق النور"
+            ,darkTeam: "فريق الظلام"
             ,phaseOpponentTurn: "المرحلة {phase} - دور الخصم"
             ,joinLight: "انضممت إلى فريق النور. اختر كرتًا من يدك وابدأ الهجوم."
             ,joinDark: "انضممت إلى فريق الظلام. اختر كرتًا من يدك وابدأ الهجوم."
@@ -297,6 +521,85 @@ const translations = {
             ,bankMercenary: "جيش المرتزقة"
             ,bankTax: "ضريبة قسرية"
             ,bankruptcy: "لعنة الإفلاس"
+            ,news: {
+                aiStarted: "بدأت مباراة ضد الكمبيوتر. ابدأ بإنزال كروتك ثم اضغط إنهاء الدور."
+                ,joinedLight: "انضممت إلى فريق النور. اختر كرتًا من يدك وابدأ الهجوم."
+                ,joinedDark: "انضممت إلى فريق الظلام. اختر كرتًا من يدك وابدأ الهجوم."
+                ,computerThinking: "🤖 الكمبيوتر يفكر..."
+                ,computerCannotMove: "🤖 الكمبيوتر عجز عن أي حركة وانسحب من المباراة."
+                ,computerDeploy: "🤖 الكمبيوتر أنزل {card} في الساحة (تكلفة {cost})."
+                ,computerHeals: "🤖 معالجة النور عالجت {target} وأضافت {health} حياة."
+                ,computerBlocks: "🤖 الجار الصامت منع {card} من الهجوم في دورك القادم."
+                ,computerBankPurchase: "🤖 الكمبيوتر اشترى {card} من البنك مقابل {cost} ذهب."
+                ,computerGraveyardPurchase: "🤖 الكمبيوتر اشترى {card} من المقبرة مقابل {cost} ذهب."
+                ,computerDarkExchange: "🤖 الكمبيوتر استبدل 3 ذهب بـ6 حياة لقائده."
+                ,computerLightExchange: "🤖 الكمبيوتر استبدل 3 ذهب بـ6 حياة لمعالجة النور."
+                ,lotteryWin: "🤖 الكمبيوتر لعب لعبة الحظ وكسب 10 ذهبات!"
+                ,lotteryLoss: "🤖 الكمبيوتر لعب لعبة الحظ وخسر 5 ذهبات."
+                ,lotteryNoChange: "🤖 الكمبيوتر لعب لعبة الحظ ولم يكسب ولم يخسر شيئًا."
+                ,blockEffectsEnded: "انتهت تأثيرات المنع، ويمكن للكروت الهجوم مجددًا."
+                ,lightEconomicVictory: "حقق فريق النور النصر الاقتصادي بعد وصول رصيده إلى {gold} قطعة ذهب!"
+                ,darkEconomicVictory: "حقق فريق الظلام النصر الاقتصادي بعد وصول رصيده إلى {gold} قطعة ذهب!"
+                ,noGoldForPurchase: "لا يوجد مال كافٍ لشراء {item}."
+                ,purchaseNeedsSacrifice: "لا يمكنك شراء {item} لأنك لا تملك الذهب الكافي ولا يمكنك التضحية بحياة القائد."
+                ,stillNotEnoughGold: "بعد التضحية بحياة القائد، ما زال الذهب غير كافٍ لشراء {item}."
+                ,bankUnavailable: "سوق البنك متاح ابتداءً من المرحلة الثالثة."
+                ,lotteryResult: "اشتريت {item} مقابل {cost} ذهب. نتيجة القرعة: {result}"
+                ,bankPurchase: "اشتريت {item} من البنك مقابل {cost} ذهب وأضيف إلى يدك."
+                ,darkGoldExchange: "استبدل فريق الظلام 3 ذهب بـ6 حياة لسيد الظلال."
+                ,lightGoldExchange: "استبدل فريق النور 3 ذهب بـ6 حياة لمعالجة النور."
+                ,leaderHealthTooLow: "لا يمكن التضحية: صحة القائد 2 أو أقل تجنبًا لهلاكه."
+                ,leaderExchangeAlreadyUsed: "تم استخدام استبدال حياة القائد بالذهب لهذه الجولة بالفعل."
+                ,leaderSacrifice: "ضحى {leader} ({team}) بـ 2 من حياته وحصل على 5 قطع ذهب إضافية."
+                ,noAffordableCard: "خسر فريقك لأنه عجز عن إنزال أي كرت من يده بسبب نقص الذهب ولم تعد صحة القائد تسمح بالتضحية."
+                ,duplicateCard: "لا يمكن تكرار كرت موجود في ساحة المعركة."
+                ,tooManyCards: "لا يسمح بانزال 3 كروت في نفس الدور. انتظر إلى الجولة القادمة."
+                ,cardDeployed: "تم إنزال {card} وخصم {cost} من الذهب."
+                ,tapEmptySlot: "اضغط خانة فارغة لإنزال الكرت، أو اضغط الكرت مجددًا للإلغاء."
+                ,phaseIncome: "الحكم: دخلت الجولة {phase}، تم توزيع {income} ذهب لكل لاعب."
+                ,phaseNoIncome: "الحكم: دخلت الجولة {phase}، ولا يوجد توزيع ذهب إضافي في هذه المرحلة."
+                ,phaseNoIncomeShort: "الحكم: دخلت الجولة {phase}."
+                ,lostNoEvent: "خسر فريقك لأنه لم يعد قادرًا على تنفيذ أي حركة."
+                ,leaderLost: "خسر قائد فريق {team} جميع نقاط حياته. {winner} فاز بالمباراة!"
+                ,noMovesAvailable: "لا توجد حركات متاحة لك حاليًا. يمكنك إنهاء الدور وانتظار الجولة التالية."
+                ,noOpponentCards: "لا توجد كروت للخصم في الساحة."
+                ,cardAlreadyBlocked: "هذا الكرت ممنوع بالفعل."
+                ,silentNeighborBlock: "الجار الصامت منع {card} من الهجوم في دوره القادم."
+                ,lightShieldProtects: "درع النور يحمي قائد الفريق من الضرر!"
+                ,lightShieldDestroyed: "مات درع النور، انتهت الحماية عن القائد."
+                ,invalidAttack: "لا يمكن تنفيذ هذا الهجوم: {reason}"
+                ,invalidCard: "هذا الكرت غير صالح."
+                ,attackTooWeak: "لا يمكن الهجوم: قوة الكرت المهاجم أقل من قوة الكرت المستهدف."
+                ,attackOutcomeWithGold: "هجوم {attacker} على {target}: خسر {attacker} عدد {targetAttack} حياة، وخسر {target} عدد {attackerAttack} حياة. النتيجة: {attacker} {attackerResult}، و{target} {targetResult}. حصل {team} على 2 ذهب لأنه بدأ الهجوم وأسقط {target}."
+                ,attackOutcome: "هجوم {attacker} على {target}: خسر {attacker} عدد {targetAttack} حياة، وخسر {target} عدد {attackerAttack} حياة. النتيجة: {attacker} {attackerResult}، و{target} {targetResult}."
+                ,healerUsesExhausted: "استنفدت معالجة النور عدد العلاجات المسموح به في هذه الجولة."
+                ,healerAtLowHealth: "عندما تصل حياة معالجة النور إلى 2 لا تعالج أحدًا."
+                ,healerRestores: "عالجت معالجة النور {target} وأضافت {health} حياة، وخسرت نقطتين من حياتها."
+                ,graveyardInsufficientGold: "ليس لديك مال كافٍ لشراء {card}. تحتاج إلى {cost} ذهب."
+                ,graveyardPurchase: "تم شراء {card} من المقبرة مقابل {cost} ذهب، وإنزاله سيكلّف 1 ذهب فقط."
+                ,turnStarted: "بدأ دورك الآن (المرحلة {phase})."
+                ,judgeTurnStarted: "الحكم: بدأ دورك (المرحلة {phase}). تم توزيع {income} ذهب لكل لاعب."
+                ,judgeTurnStartedNoIncome: "الحكم: بدأ دورك (المرحلة {phase})."
+                ,opponentTurn: "دور الخصم الآن."
+                ,challengeFailed: "تعذر إرسال التحدي."
+                ,playerAlreadyChallenged: "أحد اللاعبين موجود بالفعل في تحدٍ آخر."
+                ,challengeIncoming: "هل تريد قبول تحدي {name}؟\nسيتم تخصيصك تلقائيًا إلى فريق {team}. مدة الدور: {duration}."
+                ,challengeSent: "تم إرسال تحدي إلى {name}، وقررت اللعب كفريق {team}."
+                ,challengeSentAsTeam: "تم إرسال تحدي إلى {name} كفريق النور."
+                ,challengeSentWithTeam: "تم إرسال تحدي إلى {name} مع اختيارك لفريق {team}."
+                ,onlineMatchStarted: "بدأت مباراة عبر الإنترنت ضد {name}."
+                ,challengeExpired: "انتهت مدة التحدي ولم تتم الموافقة عليه."
+                ,opponentTemporarilyDisconnected: "انقطع اتصال الخصم مؤقتًا. ستبقى المباراة محفوظة لوقت قصير."
+                ,matchEndedDisconnected: "انتهت المباراة لأن الاتصال لم يعد خلال المهلة المحددة."
+                ,opponentDisconnectedWin: "انقطع اتصال الخصم، وتم احتساب المباراة لصالحك."
+                ,youTemporarilyDisconnected: "انقطع اتصالك مؤقتًا. ستستأنف المباراة تلقائيًا عند عودة الاتصال."
+                ,matchRestored: "تمت استعادة المباراة بعد إعادة الاتصال."
+                ,roomRestored: "تمت استعادة الغرفة، بانتظار عودة اللاعب الآخر."
+                ,turnEndedWaiting: "انتهى دورك، بانتظار الخصم."
+                ,computerTurnEndedWaiting: "انتهى دورك، بانتظار الخصم."
+                ,emptyArenaLoss: "خسر فريق {team} لأن ساحته كانت فارغة عند انتهاء دوره."
+                ,lostWithoutAction: "خسر فريقك لأنه أنهى دوره دون هجوم أو إنزال أو معالجة أو لعبة حظ."
+            }
         },
         card: {
             health: "الحياة",
@@ -353,7 +656,7 @@ const translations = {
             victory: "شروط الفوز",
             victoryDesc: "يعلن النظام النتيجة تلقائيًا عند تحقق أحد الشرطين:",
             victory1: "<strong>النصر العسكري:</strong> وصول صحة قائد الخصم إلى <strong>0</strong>.",
-            victory2: "<strong>النصر الاقتصادي:</strong> وصول ذهبك إلى <strong>25</strong> قطعة داخل خزنتك.",
+            victory2: "<strong>النصر الاقتصادي:</strong> وصول ذهبك إلى <strong>30</strong> قطعة داخل خزنتك.",
             connection: "الاتصال والانقطاع",
             connection1: "يظهر مؤشر الدور لتعرف متى يمكنك تنفيذ الأوامر.",
             connection2: "إذا انقطع اتصالك، أعد فتح المباراة أو اضغط العودة ثم انضم مجددًا.",
@@ -408,6 +711,10 @@ function setLanguage(lang) {
     
     // حفظ اللغة المختارة
     localStorage.setItem('selectedLanguage', lang);
+
+    if (typeof refreshInsufficientGoldMessage === 'function') {
+        refreshInsufficientGoldMessage();
+    }
     
     // تحديث زر اللغة
     updateLanguageButton(lang);
@@ -445,15 +752,23 @@ function updateTexts(lang) {
         const value = getNestedValue(t, key);
         if (value) element.setAttribute('aria-label', value);
     });
+
+    document.querySelectorAll('[data-i18n-title]').forEach(element => {
+        const key = element.getAttribute('data-i18n-title');
+        const value = getNestedValue(t, key);
+        if (value) element.setAttribute('title', value);
+    });
+
+    document.querySelectorAll('[data-i18n-alt]').forEach(element => {
+        const key = element.getAttribute('data-i18n-alt');
+        const value = getNestedValue(t, key);
+        if (value) element.setAttribute('alt', value);
+    });
     
     // تحديث عنوان الصفحة
     document.title = t.title;
     
-    // تحديث رسالة شريط الأخبار الافتراضية
-    const newsTicker = document.getElementById('battle-news-text');
-    if (newsTicker && !newsTicker.hasAttribute('data-i18n')) {
-        newsTicker.textContent = t.battle.defaultMessage;
-    }
+    if (typeof updateBattleNewsCount === 'function') updateBattleNewsCount();
     
     // شاشة الاختيار
     const subtitle = document.querySelector('.header-subtitle');
@@ -507,7 +822,7 @@ function updateTexts(lang) {
     const darkTeamH1 = document.querySelector('#dark-player-banner h1');
     if (darkTeamH1) darkTeamH1.textContent = t.battle.darkTeam;
     
-    const turnIndicator = document.querySelector('.turn-indicator');
+    const turnIndicator = document.querySelector('#turn-indicator-label');
     if (turnIndicator) turnIndicator.textContent = t.battle.turn;
     
     const arenaTitle = document.querySelector('.arena-title');
@@ -523,10 +838,16 @@ function updateTexts(lang) {
     if (lotteryToggle) lotteryToggle.textContent = t.battle.luck;
     
     const handToggle = document.querySelector('#hand-toggle');
-    if (handToggle) handToggle.setAttribute('aria-label', t.battle.handCards);
+    if (handToggle) {
+        handToggle.setAttribute('aria-label', t.battle.handCards);
+        handToggle.setAttribute('title', t.battle.handCards);
+    }
     
-    const battleNewsStrong = document.querySelector('.battle-news strong');
-    if (battleNewsStrong) battleNewsStrong.textContent = t.battle.gameEvents;
+    const handToggleLabel = document.querySelector('#hand-toggle .hand-toggle-label');
+    if (handToggleLabel) handToggleLabel.textContent = t.battle.handCards;
+    
+    const battleNewsTitle = document.querySelector('.battle-news-header strong span');
+    if (battleNewsTitle) battleNewsTitle.textContent = t.battle.gameEvents;
     
     const endTurnBtn = document.getElementById('end-turn-button');
     if (endTurnBtn) endTurnBtn.textContent = t.battle.endTurn;

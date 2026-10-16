@@ -8,7 +8,7 @@
     'use strict';
 
     const RULES = {
-        leaderDmg: 5, killGold: 2, econGold: 25, startHp: 20,
+        leaderDmg: 5, killGold: 2, econGold: 30, startHp: 20,
         lottery: [0, 10, -5], lotteryCost: 2,
         attackPhase: 2, bankPhase: 3,
         income: { 2: 4, 3: 3, 4: 2, 5: 1 },
@@ -16,7 +16,7 @@
         discountedDropCost: 1,          // إنزال كرت اشتُري من البنك أو المقبرة
         maxRounds: 40, maxDeployPerTurn: 2
     };
-    const SPECIAL = { shield: 4, sword: 3, falcon: 2, healer: 3, silent: 3 };
+    const SPECIAL = { shield: 4, sword: 3, falcon: 2, healer: 3, silent: 3, trader: 4, resurrect: 6, tax: 3, bankruptcy: 5, vaultGuardian: 6 };
 
     function mulberry32(a) {
         return function () {
@@ -52,45 +52,61 @@
             g.T = { light: cloneTeam(this.T.light), dark: cloneTeam(this.T.dark) };
             return g;
         }
-        hand(t) { const T = this.T[t]; return T.cards.filter((c) => !T.deployed.has(c.name)); }
-        dropCost(T, def) { return T.drop[def.name] !== undefined ? T.drop[def.name] : (def.isBank ? this.R.discountedDropCost : def.cost); }
-        setOver(w, type) { if (this.over) return; this.over = true; this.winner = w; this.type = type; }
-        checkEcon() {
-            if (this.over) return;
-            if (this.T.light.gold >= this.R.econGold) this.setOver('light', 'economic');
-            else if (this.T.dark.gold >= this.R.econGold) this.setOver('dark', 'economic');
+        hand(t) { const T = this.T[t]; return T.cards.filter((c) => !T.deployed.has(c.id) && !T.board.some((card) => card && card.def.id === c.id)); }
+        dropCost(T, def) { return T.drop[def.id] !== undefined ? T.drop[def.id] : (def.isBank ? this.R.discountedDropCost : def.cost); }
+        canDeploy(t, def) {
+            return def.key !== 'silent' || !this.T[opp(t)].board.some((c) => c && c.def.key === 'resurrect');
         }
-        hasShield(t) { return this.T[t].board.some((c) => c && c.def.key === 'shield'); }
+        setOver(w, type) { if (this.over) return; this.over = true; this.winner = w; this.type = type; }
+        checkEcon(tieBreakerTeam) {
+            if (this.over) return;
+            const lightReached = this.T.light.gold >= this.R.econGold;
+            const darkReached = this.T.dark.gold >= this.R.econGold;
+            const winner = lightReached && darkReached
+                ? tieBreakerTeam
+                : (lightReached ? 'light' : darkReached ? 'dark' : null);
+            if (winner) this.setOver(winner, 'economic');
+        }
+        hasShield(t) { return this.T[t].board.some((c) => c && ['shield', 'commanderShield'].includes(c.def.key)); }
         damageLeader(t) { if (this.hasShield(t)) return; const T = this.T[t]; T.hp = Math.max(0, T.hp - this.R.leaderDmg); }
-        removeCard(t, idx) { const T = this.T[t]; const c = T.board[idx]; T.grave.push({ def: c.def }); this.damageLeader(t); T.board[idx] = null; }
+        removeCard(t, idx) { const T = this.T[t]; const c = T.board[idx]; T.grave.push({ def: c.def }); T.deployed.delete(c.def.id); this.damageLeader(t); T.board[idx] = null; }
 
         sacrifice(t, need) {
             const T = this.T[t];
             if (T.hp <= 2 || T.htg || T.gold + 5 < need) return false;
-            T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(); return true;
+            T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(t); return true;
         }
         deploy(t, def, slot, allowSac) {
             const T = this.T[t];
-            if (this.over || T.board[slot] || T.deployed.has(def.name)) return false;
+            if (this.over || T.board[slot] || T.deployed.has(def.id)
+                || T.board.some((card) => card && card.def.id === def.id) || !this.canDeploy(t, def)) return false;
             if ((T.deployedThisTurn || 0) >= this.R.maxDeployPerTurn) return false;
             const cost = this.dropCost(T, def);
             if (T.gold < cost && !(allowSac && this.sacrifice(t, cost))) return false;
             if (T.gold < cost) return false;
-            T.gold -= cost; T.deployed.add(def.name); delete T.drop[def.name];
+            T.gold -= cost; T.deployed.add(def.id); delete T.drop[def.id];
             T.deployedThisTurn = (T.deployedThisTurn || 0) + 1;
             T.board[slot] = { def, hp: def.hp, atk: def.atk, used: false, heals: 0, blocked: false };
+            if (def.key === 'resurrect') {
+                const ot = opp(t), opponent = this.T[ot];
+                opponent.board.forEach((card, index) => {
+                    if (card && card.def.key === 'silent') this.removeCard(ot, index);
+                });
+                if (opponent.hp <= 0) this.setOver(t, 'military');
+            }
             this.acted = true; return true;
         }
         buyBank(t, b) {
             const T = this.T[t];
-            if (this.over || this.phase < this.R.bankPhase || T.cards.some((c) => c.name === b.name) || T.gold < b.cost) return false;
-            T.gold -= b.cost; T.cards.push({ name: b.name, key: null, cost: 1, hp: b.hp, atk: b.atk, isBank: true });
+            if (this.over || this.phase < this.R.bankPhase || T.gold < b.cost) return false;
+            T.gold -= b.cost; T.cards.push({ id: b.id, name: b.name, key: b.key || null, cost: 1, hp: b.hp, atk: b.atk, isBank: true });
             this.acted = true; return true;
         }
         buyBack(t, gi) {
             const T = this.T[t]; const e = T.grave[gi];
-            if (this.over || this.phase < this.R.bankPhase || !e || T.gold < e.def.cost) return false;
-            T.gold -= e.def.cost; T.grave.splice(gi, 1); T.deployed.delete(e.def.name); T.drop[e.def.name] = this.R.discountedDropCost;
+            if (this.over || this.phase < this.R.bankPhase || !e || T.deployed.has(e.def.id)
+                || T.board.some((card) => card && card.def.id === e.def.id) || T.gold < e.def.cost) return false;
+            T.gold -= e.def.cost; T.grave.splice(gi, 1); T.deployed.delete(e.def.id); T.drop[e.def.id] = this.R.discountedDropCost;
             this.acted = true; return true;
         }
         lottery(t) {
@@ -98,7 +114,7 @@
             if (this.over || this.phase < this.R.bankPhase || T.gold < this.R.lotteryCost) return false;
             T.gold -= this.R.lotteryCost;
             const o = this.R.lottery[Math.floor(this.rng() * this.R.lottery.length)];
-            T.gold = Math.max(0, T.gold + o); this.acted = true; this.checkEcon(); return true;
+            T.gold = Math.max(0, T.gold + o); this.acted = true; this.checkEcon(t); return true;
         }
         goldToHealth(t) {
             const T = this.T[t];
@@ -122,13 +138,13 @@
             const ot = opp(t); const A = this.T[t].board[ai]; const D = this.T[ot].board[tj];
             A.hp -= D.atk; D.hp -= A.atk;
             const tDies = D.hp <= 0, aDies = A.hp <= 0;
-            if (tDies) { this.T[t].gold += this.R.killGold; this.checkEcon(); }
-            if (this.over) return true;
+            if (tDies) this.T[t].gold += this.R.killGold;
             if (tDies) this.removeCard(ot, tj);
             if (aDies) this.removeCard(t, ai); else A.used = true;
             this.acted = true;
             const a = this.T[t].hp, d = this.T[ot].hp;
             if (a === 0 || d === 0) this.setOver(a === 0 && d === 0 ? t : (a > 0 ? t : ot), 'military');
+            this.checkEcon(t);
             return true;
         }
         heal(t, hi, target) {
@@ -161,7 +177,7 @@
         }
         anyAction(t) {
             const T = this.T[t], O = this.T[opp(t)]; const free = T.board.some((c) => !c);
-            if (free && this.hand(t).some((c) => this.dropCost(T, c) <= T.gold)) return true;
+            if (free && this.hand(t).some((c) => this.canDeploy(t, c) && this.dropCost(T, c) <= T.gold)) return true;
             if (this.phase >= 2) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if (T.board[i] && O.board[j] && !this.attackReason(t, i, j)) return true;
             const H = T.board.find((c) => c && c.def.key === 'healer');
             if (H && this.phase >= 2 && H.hp > this.R.healCost && (T.hp < this.R.startHp || T.board.some((c) => c && c !== H && c.hp < c.def.hp))) return true;
@@ -174,24 +190,35 @@
             this.T[t].board.forEach((c) => { if (c) { c.used = false; c.heals = 0; } });
         }
         endTurn(t) { this.T[t].board.forEach((c) => { if (c) c.blocked = false; }); }
-        advanceRound() {
+        advanceRound(tieBreakerTeam) {
             this.round++; this.phase = Math.min(this.round, 5);
             const inc = this.R.income[this.phase] || 0;
             for (const t of ['light', 'dark']) { this.T[t].gold += inc; this.T[t].htg = false; }
-            this.checkEcon();
+            for (const t of ['light', 'dark']) {
+                const traderIncome = this.T[t].board.filter((c) => c && c.def.key === 'trader').length;
+                this.T[t].gold += traderIncome;
+                const drain = this.T[t].board.reduce((total, c) => total
+                    + (c && c.def.key === 'bankruptcy' ? 2 : 0)
+                    + (c && c.def.key === 'tax' ? 1 : 0), 0);
+                const opponent = this.T[opp(t)];
+                if (!opponent.board.some((c) => c && c.def.key === 'vaultGuardian')) {
+                    opponent.gold = Math.max(0, opponent.gold - drain);
+                }
+            }
+            this.checkEcon(tieBreakerTeam);
         }
         // دور كامل لبوت داخل المحاكاة
         takeTurn(t, bot) {
             const T = this.T[t]; this.beginTurn(t);
             if (!this.anyAction(t)) {
-                if (this.round > 1 && T.hp > 2 && !T.htg) { T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(); }
+                if (this.round > 1 && T.hp > 2 && !T.htg) { T.hp -= 2; T.gold += 5; T.htg = true; this.checkEcon(t); }
                 else if (T.board.every((c) => !c) && T.hp <= 2) { this.setOver(opp(t), 'nomoves'); return; }
             }
             if (!this.over) bot.turn(this, t);
             this.endTurn(t);
         }
         // بعد أن ينهي t دوره: هل تنتهي الجولة؟ (اللاعب الثاني يغلق الجولة)
-        afterTurn(t) { if (!this.over && this.first !== t) this.advanceRound(); }
+        afterTurn(t) { if (!this.over && this.first !== t) this.advanceRound(t); }
         boardValue(t, p) { let v = 0; for (const c of this.T[t].board) if (c) v += valueOf(c.def, p, c.hp); return v; }
         evaluate(t) {
             if (this.over) return this.winner === t ? 1 : (this.winner === null ? 0.5 : 0);
@@ -228,15 +255,18 @@
             const free = T.board.findIndex((c) => !c);
             if (free >= 0 && (T.deployedThisTurn || 0) < g.R.maxDeployPerTurn) {
                 for (const def of g.hand(t)) {
+                    if (!g.canDeploy(t, def)) continue;
                     const cost = g.dropCost(T, def); const base = valueOf(def, P) - cw * cost + 1;
                     if (T.gold >= cost) out.push({ s: base, act: { k: 'deploy', def, slot: free, sac: false } });
                     else if (g.round > 1 && T.hp > 8 && !T.htg && T.gold + 5 >= cost) out.push({ s: base - 2.5, act: { k: 'deploy', def, slot: free, sac: true } });
                 }
                 if (g.phase >= g.R.bankPhase) {
-                    for (const b of g.bank) if (!T.cards.some((c) => c.name === b.name) && T.gold >= b.cost + g.R.discountedDropCost) {
+                    for (const b of g.bank) if (!T.cards.some((c) => c.id === b.id) && T.gold >= b.cost + g.R.discountedDropCost) {
                         out.push({ s: valueOf(b, P) - cw * (b.cost + g.R.discountedDropCost) + 0.6, act: { k: 'bank', b, slot: free } });
                     }
                     T.grave.forEach((e, gi) => {
+                        if (T.deployed.has(e.def.id) || T.board.some((card) => card && card.def.id === e.def.id)
+                            || !g.canDeploy(t, e.def)) return;
                         const need = e.def.cost + g.R.discountedDropCost;
                         if (T.gold >= need) out.push({ s: valueOf(e.def, P) - cw * need + 0.4, act: { k: 'back', gi, slot: free } });
                     });
@@ -310,9 +340,13 @@
         const budget = o.budgetMs !== undefined ? o.budgetMs : 350, maxN = o.maxN || 40, horizon = o.horizon || 6, topK = o.topK || 7;
         const seedBase = o.seed !== undefined ? o.seed : Math.floor(Math.random() * 1e9);
         const bot = new SimBot(SELF_PARAMS);
-        const cands = bot.candidates(g0, t).filter((c) => c.s > -3).sort((a, b) => b.s - a.s).slice(0, topK);
+        const allCands = bot.candidates(g0, t).sort((a, b) => b.s - a.s);
+        const attackCands = allCands.filter((c) => c.act.k === 'atk');
+        const cands = allCands.slice(0, topK);
+        if (attackCands.length && !cands.some((c) => c.act.k === 'atk')) cands.push(attackCands[0]);
         const options = cands.map((c) => ({ act: c.act, sum: 0, n: 0 }));
-        if (g0.acted || options.length === 0) options.push({ act: null, sum: 0, n: 0 });        // إنهاء الدور
+        if (g0.acted && attackCands.length === 0) options.push({ act: null, sum: 0, n: 0 }); // إنهاء الدور بعد استنفاد الهجمات
+        if (options.length === 0) return null;
         if (options.length === 1) return options[0].act;
         const rngOpp = mulberry32(seedBase ^ 0x9e3779b9);
         const oppSamples = []; for (let i = 0; i < maxN; i++) oppSamples.push(sampleOpponent(rngOpp));

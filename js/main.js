@@ -12,6 +12,7 @@
     const nameError = document.querySelector('#welcome-error');
     const challengeHumans = document.querySelector('#challenge-humans');
     const challengeComputer = document.querySelector('#challenge-computer');
+    const languageToggle = document.querySelector('#language-toggle');
     const backToWelcome = document.querySelector('#back-to-welcome');
     const headerSubtitle = document.querySelector('.header-subtitle');
     const pickDark = document.querySelector('#join-dark-team');
@@ -40,6 +41,7 @@
             if (mode === 'online') OnlineMode.exit();
             if (mode === 'ai') AIMode.exit();
             mode = null;
+            languageToggle.disabled = false;
             pickLight.hidden = true;
             pickDark.hidden = true;
             factionChallenge.setAttribute('aria-expanded', 'false');
@@ -104,8 +106,8 @@
         if (shouldShow) pickLight.focus();
     });
     // أزرار اختيار الفريق تعمل في وضع الكمبيوتر فقط (في الأونلاين تُخفى ويُختار الفريق عند التحدي)
-    pickLight.addEventListener('click', () => { if (mode === 'ai') AIMode.start('light'); });
-    pickDark.addEventListener('click', () => { if (mode === 'ai') AIMode.start('dark'); });
+    pickLight.addEventListener('click', () => { if (mode === 'ai') AIMode.start('light', getSelectedTurnDurationMs()); });
+    pickDark.addEventListener('click', () => { if (mode === 'ai') AIMode.start('dark', getSelectedTurnDurationMs()); });
     nameInput.addEventListener('input', () => { nameError.hidden = true; });
 
     try { nameInput.value = localStorage.getItem(NAME_KEY) || ''; } catch (error) { nameInput.value = ''; }

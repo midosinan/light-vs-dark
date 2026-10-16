@@ -21,7 +21,7 @@ body {
 }
 
 .hand-toggle {
-    display: none; /* إخفاء زر كروت اليد في سطح المكتب */
+    display: none;
 }
 
 /* زر تبديل اللغة */
@@ -46,6 +46,18 @@ body {
     background: rgba(212, 175, 55, 1);
     transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+.language-toggle:disabled {
+    cursor: not-allowed;
+    filter: grayscale(.75);
+    opacity: .55;
+}
+
+.language-toggle:disabled:hover {
+    background: rgba(212, 175, 55, 0.8);
+    transform: none;
+    box-shadow: none;
 }
 
 [dir="rtl"] .language-toggle {
@@ -94,7 +106,7 @@ body {
 /* الشريط العلوي */
 .main-header {
     grid-column: 1 / -1;
-    z-index: 10;
+    z-index: 60;
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -122,6 +134,26 @@ body {
     color: #fff;
     font-size: 14px;
     text-shadow: 0 2px 4px #000;
+}
+
+.turn-duration-setting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--gold-light);
+    font-size: 13px;
+}
+
+.turn-duration-setting select {
+    max-width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--gold-primary);
+    border-radius: 4px;
+    color: var(--gold-light);
+    background: rgba(10, 10, 15, .95);
+    font: inherit;
 }
 
 .guide-button {
@@ -358,7 +390,7 @@ html[lang="ar"] #challenge-team-modal .guide-content {
     left: 50%;
     bottom: 24px;
     transform: translateX(-50%);
-    z-index: 25;
+    z-index: 70;
     width: min(520px, 86vw);
     background: rgba(10, 12, 18, 0.9);
     border: 2px solid var(--gold-primary);
@@ -378,6 +410,23 @@ html[lang="ar"] #challenge-team-modal .guide-content {
 .online-lobby-header h2 {
     color: var(--gold-light);
     font-size: 20px;
+}
+
+.online-refresh-button {
+    flex: 0 0 auto;
+    border: 1px solid var(--gold-primary);
+    border-radius: 999px;
+    background: rgba(32, 47, 60, .8);
+    color: var(--gold-light);
+    padding: 7px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+}
+
+.online-refresh-button:disabled {
+    cursor: wait;
+    opacity: .65;
 }
 
 .play-vs-computer {
@@ -444,7 +493,10 @@ html[lang="ar"] #challenge-team-modal .guide-content {
 .factions-container {
     grid-column: 2;
     grid-row: 2;
-    z-index: 5;
+    align-self: start;
+    height: calc(100% - clamp(12px, 2vh, 24px));
+    margin-top: clamp(12px, 2vh, 24px);
+    z-index: 55;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -745,6 +797,10 @@ html[lang="ar"] #challenge-team-modal .guide-content {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .selection-screen {
+        grid-template-rows: auto minmax(0, 1fr) 126px;
+    }
+
     .sidebar {
         display: none;
     }
@@ -803,6 +859,10 @@ html[lang="ar"] #challenge-team-modal .guide-content {
 @media (max-width: 560px) {
     .game-container {
         grid-template-rows: 68px minmax(0, 1fr) 104px;
+    }
+
+    .selection-screen {
+        grid-template-rows: auto minmax(0, 1fr) 104px;
     }
 
     .factions-container {
@@ -963,6 +1023,17 @@ html[lang="ar"] #challenge-team-modal .guide-content {
     text-align: center;
     box-shadow: 0 0 18px rgba(212,175,55,.35);
 }
+
+.turn-timer {
+    display: block;
+    margin-top: 4px;
+    color: var(--gold-light);
+    font-size: .85em;
+    font-weight: bold;
+}
+
+#turn-timer[hidden] { display: none; }
+.turn-timer.timer-warning { color: #ff7770; }
 
 .battle-arena {
     width: min(76vw, 1120px);
@@ -1301,6 +1372,7 @@ html[lang="ar"] #challenge-team-modal .guide-content {
 
 .battle-hand {
     position: absolute;
+    z-index: 1;
     bottom: 46px;
     left: 24px;
     right: auto;
@@ -1308,61 +1380,238 @@ html[lang="ar"] #challenge-team-modal .guide-content {
     display: flex;
     align-items: flex-end;
     justify-content: flex-start;
-    gap: 8px;
+    gap: 0;
     width: auto;
     max-width: calc(100% - 48px);
+    padding-left: 12px;
+    padding-bottom: 8px;
+}
+
+.battle-hand.is-fanned {
+    z-index: 3;
+}
+
+.battle-hand .battle-card {
+    position: relative;
+    margin-inline-start: -14px;
+    transform: translateY(0) rotate(var(--card-angle, 0deg));
+    transform-origin: bottom center;
+    transition: transform 0.28s ease, margin-inline-start 0.28s ease, box-shadow 0.28s ease, filter 0.28s ease;
+    box-shadow: 0 12px 22px rgba(0,0,0,.38);
+    filter: saturate(.96);
+}
+
+.battle-hand .battle-card:first-child {
+    margin-inline-start: 0;
+}
+
+.battle-hand:not(.is-fanned) {
+    padding-bottom: 10px;
+}
+
+.battle-hand:not(.is-fanned) .battle-card {
+    margin-inline-start: -18px;
+    transform: translateY(12px) rotate(calc(var(--card-angle, 0deg) * 0.7));
+    filter: saturate(.82) brightness(.9);
+    z-index: 1;
+}
+
+.battle-hand:not(.is-fanned) .battle-card:nth-child(n+2) {
+    transform: translateY(18px) rotate(calc(var(--card-angle, 0deg) * 0.8));
+}
+
+.battle-hand:not(.is-fanned) .battle-card:first-child {
+    transform: translateY(8px);
+}
+
+.battle-hand:not(.is-fanned) .battle-card:hover,
+.battle-hand:not(.is-fanned) .battle-card:focus-visible {
+    transform: translateY(-6px) rotate(0deg) scale(1.04);
+    z-index: 20;
+}
+
+.battle-hand.is-fanned .battle-card {
+    margin-inline-start: -38px;
+    transform: translateY(18px) scale(0.9) rotate(var(--card-angle, 0deg));
+    opacity: 0.9;
+    z-index: 1;
+    clip-path: inset(0 0 18% 0 round 8px);
+    filter: saturate(.7) brightness(.9);
+}
+
+.battle-hand.is-fanned .battle-card:first-child {
+    margin-inline-start: 0;
+    transform: translateY(0) scale(1) rotate(0deg);
+    opacity: 1;
+    z-index: 10;
+    clip-path: inset(0 0 0 0 round 8px);
+    box-shadow: 0 16px 28px rgba(0,0,0,.42);
+}
+
+.battle-hand.is-fanned .battle-card:nth-child(2) {
+    transform: translateY(10px) scale(0.96) rotate(2deg);
+}
+
+.battle-hand.is-fanned .battle-card:nth-child(3n) {
+    transform: translateY(16px) scale(0.92) rotate(-2deg);
+}
+
+.battle-hand.is-fanned .battle-card:nth-child(4n) {
+    transform: translateY(22px) scale(0.9) rotate(3deg);
+}
+
+.battle-hand.is-fanned .battle-card:hover,
+.battle-hand.is-fanned .battle-card:focus-visible {
+    transform: translateY(-22px) rotate(0deg) scale(1.04);
+    opacity: 1;
+    z-index: 20;
+    clip-path: inset(0 0 0 0 round 8px);
+    box-shadow: 0 18px 28px rgba(0,0,0,.48);
+}
+
+.hand-toggle {
+    position: absolute;
+    top: calc(19vh + 208px);
+    right: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 110px;
+    height: 52px;
+    padding: 8px 10px;
+    border: 2px solid var(--gold-primary);
+    border-radius: 10px;
+    color: var(--gold-light);
+    background: rgba(4, 12, 18, .94);
+    box-shadow: 0 7px 22px rgba(0,0,0,.7);
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.hand-toggle .hand-toggle-icon {
+    display: none;
+}
+
+.hand-toggle-label {
+    display: block;
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.hand-toggle:hover,
+.hand-toggle:focus-visible {
+    color: #fff;
+    border-color: var(--gold-primary);
+    box-shadow: 0 0 18px rgba(212,175,55,.45);
+}
+
+.hand-toggle.is-fanned {
+    transform: translateY(-2px) scale(1.04);
+    border-color: var(--gold-primary);
+    box-shadow: 0 0 18px rgba(212,175,55,.35);
 }
 
 .battle-news {
     position: relative;
     z-index: 2;
     width: auto;
-    /* الهامش العلوي الكبير مقصود: يبقي الشريط الإخباري أسفل يد الكروت العائمة (position:absolute)
-       بدل التداخل معها، لأن اليد لا تتبع تدفّق الصفحة العادي. على الجوال/التابلت الصغيرة
-       يُعاد تعريف هذا العنصر بالكامل ضمن css/mobile.css فلا يستخدم هذا الهامش الكبير هناك. */
-    margin: 186px 3vw 24px;
+    /* تترك مسافة مناسبة أسفل الساحة لليد العائمة دون فراغ مبالغ فيه على الشاشات الواسعة. */
+    margin: clamp(72px, 9vh, 100px) 3vw 24px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    max-height: 150px;
-    padding: 15px;
-    overflow-y: auto;
-    border: 2px solid rgba(212,175,55,.55);
-    background: #ffffff;
-    box-shadow: 0 0 12px rgba(0,0,0,.65);
-    color: #000;
-    border-radius: 8px;
+    height: 150px;
+    max-height: 20vh;
+    min-height: 100px;
+    box-sizing: border-box;
+    padding: 10px 18px;
+    overflow: hidden;
+    border: 0;
+    border-top: 2px solid #f5b83d;
+    background: linear-gradient(180deg, rgba(25,29,52,.94), rgba(12,14,28,.98));
+    box-shadow: 0 -6px 24px rgba(0,0,0,.35);
+    backdrop-filter: blur(8px);
+    color: #e8ebff;
+    border-radius: 8px 8px 0 0;
 }
 
-.battle-news strong { 
-    color: #000; 
-    font-size: 20px; 
-    font-weight: bold;
-    border-bottom: 2px solid rgba(212,175,55,.55);
-    padding-bottom: 8px;
-    margin-bottom: 5px;
+.battle-news-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.battle-news strong {
+    color: #f5b83d;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.battle-news-count {
+    flex: 0 0 auto;
+    color: #e8ebff;
+    font-size: 12px;
+    opacity: .7;
 }
 
 .battle-news .news-ticker {
     flex: 1;
+    min-height: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0 2px 0 0;
     overflow-y: auto;
-    max-height: 120px;
+    scroll-behavior: smooth;
 }
 
 .battle-news .news-content {
-    display: block;
-    font-size: 18px;
+    flex: 0 0 auto;
+    padding: 5px 12px;
+    border-inline-start: 3px solid var(--event-color, #4fd1c5);
+    border-radius: 6px;
+    background: rgba(255,255,255,.06);
+    color: #e8ebff;
+    font-size: 14px;
+    line-height: 1.5;
     font-weight: normal;
-    color: #000;
-    margin-bottom: 8px;
-    padding: 8px;
-    background: #f5f5f5;
-    border-radius: 4px;
-    border-left: 3px solid rgba(212,175,55,.55);
 }
 
-.battle-news .news-content:last-child {
-    margin-bottom: 0;
+.battle-news .news-content.info { --event-color: #4fd1c5; }
+.battle-news .news-content.success { --event-color: #f5b83d; }
+.battle-news .news-content.danger { --event-color: #ff6b81; }
+
+.battle-news .news-empty {
+    flex: 0 0 auto;
+    padding: 5px 12px;
+    color: #e8ebff;
+    font-size: 13px;
+    opacity: .55;
+}
+
+.battle-news .news-ticker::-webkit-scrollbar { width: 6px; }
+.battle-news .news-ticker::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: rgba(245,184,61,.5);
+}
+
+@keyframes battleNewsSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.battle-news .news-content { animation: battleNewsSlideIn .3s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+    .battle-news .news-content { animation: none; }
+    .battle-news .news-ticker { scroll-behavior: auto; }
 }
 
 .insufficient-gold-modal {
@@ -1554,9 +1803,23 @@ html[lang="ar"] #challenge-team-modal .guide-content {
     /* الهامش الكبير في القاعدة (خارج هذا التعريف) مخصّص لتفادي تداخل الشريط الإخباري مع
        يد الكروت العائمة على الشاشات الواسعة؛ هنا نستبدله بموضع مضغوط مباشرة بعد الساحة،
        لأن هذا الاستعلام يغطي التابلت أيضاً حيث تحتاج يد الكروت مساحة مماثلة لموضعها في main.css أعلاه. */
-    .battle-news { margin: 14px 3vw 100px; max-height: 110px; padding: 10px; font-size: 13px; }
+    .battle-news { margin: 14px 3vw 100px; height: 110px; max-height: 20vh; min-height: 90px; padding: 8px 10px; font-size: 13px; }
     .battle-news strong { font-size: 14px; }
-    .battle-news .news-content { font-size: 12px; padding: 6px; }
+    .battle-news .news-content { font-size: 12px; padding: 5px 8px; }
+}
+
+@media (min-width: 641px) and (max-width: 1366px) {
+    .battle-hand { bottom: 0; }
+}
+
+@media (min-width: 901px) and (max-width: 1366px) {
+    .battle-news {
+        margin: 24px 3vw 190px;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 900px) {
+    .battle-hand { bottom: calc(clamp(90px, 20vh, 110px) + 16px); }
 }
 
 @media (max-width: 560px) {

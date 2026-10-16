@@ -14,6 +14,34 @@
     html, body { overflow-x: hidden; }
     .battle-screen { padding-bottom: calc(60px + 24vh); }   /* مساحة إضافية للتمرير فوق الشريط السفلي الثابت + مربع الأحداث */
 
+    /* طبقات تفاعل واضحة لمنع تغطية الأزرار بأغلفة الهاتف أو بطاقات الخلفية */
+    .selection-screen .bottom-hand,
+    .selection-screen .online-lobby,
+    .selection-screen .factions-container,
+    .selection-screen .online-player-item button,
+    .bank-toggle,
+    .lottery-toggle,
+    .hand-toggle,
+    #end-turn-button,
+    .battle-graveyard,
+    .graveyard-toggle,
+    .battle-news {
+        position: relative;
+        z-index: 20;
+        pointer-events: auto;
+    }
+
+    .battle-news { z-index: 15; }
+    .selection-screen .online-lobby { z-index: 60; }
+    .bank-toggle,
+    .lottery-toggle,
+    .hand-toggle,
+    #end-turn-button,
+    .battle-graveyard,
+    .graveyard-toggle {
+        z-index: 40;
+    }
+
     /* زر تبديل اللغة للهاتف */
     .language-toggle {
         top: 5px;
@@ -43,6 +71,7 @@
     .player-banner p { display: none; }             /* اسم الشخصية الفرعي: غير ضروري على شاشة صغيرة */
     .player-stats { gap: 4px; margin-top: 0; font-size: 9px; }
     .turn-indicator { min-width: 0; margin-top: 0; padding: 2px 4px; border-radius: 0 0 6px 6px; font-size: 8px; line-height: 1.1; }
+    .turn-timer { margin-top: 2px; font-size: 9px; }
 
     /* ------------------------------------------------------------ ساحة المعركة */
     .battle-arena { width: 100vw; height: auto; padding: 1px 1px; gap: 1px; }
@@ -64,7 +93,7 @@
         left: 0;
         right: 0;
         bottom: 72px;
-        z-index: 25;
+        z-index: 14;
         width: 100%;
         max-width: 100%;
         margin: 0;
@@ -78,6 +107,7 @@
         justify-content: flex-start;
         display: none; /* إخفاء يد الكروت الأصلية في الهاتف */
     }
+    .battle-hand.is-fanned { z-index: 16; }
     .battle-card { width: 64px; height: 96px; padding-bottom: 22px; scroll-snap-align: start; flex: 0 0 auto; }
     .battle-card h2 { bottom: 12px; font-size: 7px; }
     .battle-card .card-info-button { width: 20px; height: 20px; font-size: 12px; }
@@ -103,24 +133,34 @@
     .lottery-toggle {
         top: auto;
         bottom: 2px;
-        right: 52px;
+        right: 54px;
     }
     .lottery-toggle img { width: 16px; height: 16px; }
     .lottery-toggle small { font-size: 6px; }
     .hand-toggle {
         top: auto;
         bottom: 2px;
-        right: 102px;
+        right: 106px;
         display: flex !important; /* إظهار زر كروت اليد في الهاتف */
         flex-direction: column;
         align-items: center;
         justify-content: center;
         border-radius: 8px;
-        padding: 2px;
-        width: 46px;
-        height: 46px;
+        padding: 4px 6px;
+        width: 26%;
+        height: 7%;
+        min-width: 64px;
+        min-height: 38px;
+        max-width: 112px;
     }
-    .hand-toggle span { font-size: 20px; }
+    .hand-toggle-label {
+        display: block;
+        color: var(--gold-light);
+        font-size: 8px;
+        line-height: 1.1;
+        text-align: center;
+        white-space: nowrap;
+    }
 
     /* يمتد الزر بدقة بين أيقونتي المقبرة (يساراً) والحظ (يميناً) فلا يتداخل معهما مهما كان عرض الشاشة */
     #end-turn-button {
@@ -160,76 +200,14 @@
         box-shadow: none;
         overflow: visible;
     }
-    .graveyard-toggle {
-        position: relative;
-        z-index: 31;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 46px;
-        height: 46px;
-        padding: 0;
-        border: 2px solid rgba(176, 75, 70, .8);
-        border-radius: 50%;
-        background: rgba(4, 11, 16, .94);
-        color: #d99182;
-        cursor: pointer;
-        font-size: 16px;
-    }
-    .graveyard-toggle-count {
-        display: block;
-        min-width: 12px;
-        padding: 0 2px;
-        border-radius: 6px;
-        background: rgba(176, 75, 70, .95);
-        color: #fff;
-        font-size: 7px;
-        font-weight: bold;
-    }
-    .battle-graveyard h2 { display: none; }         /* العنوان يظهر داخل اللوحة المنزلقة فقط عند فتحها */
-    .battle-graveyard-slots {
-        position: fixed;
-        inset: auto 0 0 0;
-        z-index: 29;
-        max-height: 0;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 4px;
-        margin: 0;
-        padding: 0 10px;
-        border-top: 2px solid rgba(176, 75, 70, .7);
-        background: rgba(3, 9, 15, .97);
-        opacity: 0;
-        overflow: hidden;
-        transition: max-height .25s ease, opacity .2s ease, padding .25s ease;
-        pointer-events: none;
-    }
-    .battle-graveyard.graveyard-open .graveyard-toggle {
-        border-color: var(--gold-primary);
-        color: var(--gold-light);
-        box-shadow: 0 0 16px rgba(212, 175, 55, .5);
-    }
-    .battle-graveyard.graveyard-open .battle-graveyard-slots {
-        max-height: 50vh;
-        padding: 38px 10px 66px;
-        opacity: 1;
-        overflow-y: auto;
-        pointer-events: auto;
-    }
-    /* عنوان اللوحة المنزلقة، يظهر فقط حين تكون مفتوحة */
+    .graveyard-toggle,
+    .graveyard-toggle-count,
+    .battle-graveyard h2,
+    .battle-graveyard-slots,
+    .battle-graveyard.graveyard-open .graveyard-toggle,
+    .battle-graveyard.graveyard-open .battle-graveyard-slots,
     .battle-graveyard.graveyard-open .battle-graveyard-slots::before {
-        content: 'المقبرة';
-        position: fixed;
-        right: 0;
-        bottom: calc(50vh + 66px - 32px);
-        left: 0;
-        z-index: 1;
-        padding: 6px 10px;
-        background: rgba(3, 9, 15, .97);
-        color: #d99182;
-        text-align: center;
-        font-size: 12px;
-        font-weight: bold;
+        display: none !important;
     }
 
     /* ------------------------------------------------------------ سوق البنك: لوحة بملء الشاشة */
@@ -260,16 +238,24 @@
         right: 0;
         margin: 0;
         height: 24vh;
-        padding: 2px 6px;
+        min-height: 0;
+        padding: 6px 8px;
         font-size: 11px;
-        background: rgba(3, 8, 13, 0.95);
-        border-top: 1px solid rgba(212, 175, 55, 0.3);
+        background: linear-gradient(180deg, rgba(25,29,52,.94), rgba(12,14,28,.98));
+        border-top: 2px solid #f5b83d;
         z-index: 15;
-        overflow-y: auto;
+        overflow: hidden;
     }
-    .battle-news strong { font-size: 12px; padding-bottom: 1px; margin-bottom: 1px; }
-    .battle-news .news-content { font-size: 10px; padding: 2px; margin-bottom: 1px; }
-    .battle-news .news-ticker { max-height: calc(24vh - 15px); }
+    .battle-news-header { margin-bottom: 3px; }
+    .battle-news strong { font-size: 12px; }
+    .battle-news-count { font-size: 10px; }
+    .battle-news .news-content { font-size: 12px; line-height: 1.35; padding: 4px 8px; }
+    .battle-news .news-empty { font-size: 11px; padding: 4px 8px; }
+    .battle-news .news-ticker { max-height: none; }
+
+    @media (min-width: 641px) and (orientation: landscape) {
+        .battle-hand { bottom: calc(24vh + 72px); }
+    }
 
     /* ------------------------------------------------------------ زر الرجوع ودليل اللعبة */
     .battle-back-button { top: 6px; left: 6px; width: 36px; height: 36px; font-size: 20px; }
@@ -382,10 +368,12 @@
 
     /* ------------------------------------------------------------ شاشة اختيار الفريق (تحدي الكمبيوتر) وقائمة اللاعبين (تحدي ناس حقيقيين) */
     .game-container { height: 100dvh; grid-template-rows: 48px minmax(0, 1fr) 0; overflow-y: auto; }
-    .selection-screen .bottom-hand { display: flex; position: fixed; left: 0; right: 0; bottom: 10px; z-index: 30; padding: 0; pointer-events: none; }
+    .selection-screen { grid-template-rows: auto minmax(0, 1fr) 0; }
+    .selection-screen .bottom-hand { display: flex; position: fixed; left: 0; right: 0; bottom: 10px; z-index: 120; padding: 0; pointer-events: none; }
     .selection-screen .bottom-hand .cards-deck,
     .selection-screen .sidebar { display: none; }   /* إخفاء العناصر الزخرفية مع إبقاء زر التحدي متاحًا */
-    .selection-screen .faction-challenge { min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; pointer-events: auto; }
+    .selection-screen .faction-challenge { min-width: 88px; height: 44px; padding: 0 12px; font-size: 12px; pointer-events: auto; position: relative; z-index: 1; }
+    .selection-screen .factions-container { position: relative; z-index: 10; }
     .central-emblem { top: 30%; width: 70px; }
     .factions-container { gap: 10px; padding: 8px 6px; }
     .portrait-wrapper { width: 58px; height: 58px; margin-bottom: 6px; border-width: 2px; }
@@ -401,7 +389,7 @@
     .battle-card { width: 56px; height: 86px; }
     .empty-slot { min-height: 224px; width: calc(25vw - 2px); }
     .bank-toggle, .lottery-toggle, .graveyard-toggle, .battle-graveyard { width: 42px; height: 42px; }
-    .hand-toggle { width: 42px; height: 42px; right: 90px; }
+    .hand-toggle { width: 30%; height: 7%; right: 90px; }
     .hand-toggle span { font-size: 18px; }
     #end-turn-button { width: 27vw; height: 7vh; font-size: 7px; }
     .lottery-toggle { right: 48px; }

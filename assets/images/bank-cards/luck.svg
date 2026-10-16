@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" role="img" aria-label="Game of Luck">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0%" stop-color="#2a1848"/>
+      <stop offset="100%" stop-color="#4d2a7a"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0%" stop-color="#ffe08a"/>
+      <stop offset="100%" stop-color="#dca82f"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" rx="32" fill="url(#bg)"/>
+  <rect x="38" y="34" width="724" height="332" rx="28" fill="#1b102d" stroke="#f7d66b" stroke-width="8"/>
+  <circle cx="260" cy="170" r="82" fill="url(#gold)" opacity="0.9"/>
+  <text x="260" y="178" text-anchor="middle" font-size="78" font-family="Arial, sans-serif" fill="#2a1848" font-weight="700">◉</text>
+  <text x="430" y="170" font-size="52" font-family="Arial, sans-serif" fill="#f6d57d" font-weight="700">Game</text>
+  <text x="430" y="236" font-size="52" font-family="Arial, sans-serif" fill="#f6d57d" font-weight="700">of Luck</text>
+  <text x="430" y="294" font-size="28" font-family="Arial, sans-serif" fill="#e7d7ff">Chance • Fortune • Risk</text>
+</svg>
